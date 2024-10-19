@@ -16,7 +16,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up KeyforSteam from a config entry."""
     _LOGGER.debug("Setting up Keyforsteam entry with entry_id: %s", entry.entry_id)
     hass.data.setdefault(DOMAIN, {})
-    await hass.config_entries.async_forward_entry_setups(entry, ["sensor"])
+
+    try:
+        await hass.config_entries.async_forward_entry_setups(entry, ["sensor"])
+        _LOGGER.debug("Successfully set up sensor for KeyforSteam entry.")
+    except Exception as e:
+        _LOGGER.error("Error setting up KeyforSteam entry: %s", e)
+        return False
+
     return True
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
