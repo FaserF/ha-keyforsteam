@@ -1,0 +1,40 @@
+{
+  "title": "KeyforSteam",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Gib Produkt-ID und Währung ein",
+        "description": "Bitte gib die Produkt-ID und die Währung an, um den aktuellen günstigsten Preis zu erhalten.",
+        "data": {
+          "product_id": "Produkt-ID",
+          "currency": "Währung"
+        }
+      }
+    },
+    "error": {
+      "invalid_product_id": "Ungültige Produkt-ID. Bitte wähle eine gültige Produkt-ID.",
+      "invalid_currency": "Ungültige Währung. Bitte wähle eine gültige Währung."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "KeyforSteam Integrationsoptionen",
+        "description": "Konfiguriere die Einstellungen für die KeyforSteam-Integration.",
+        "data": {
+          "currency": "Währung"
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "keyforsteam_lowest_price": {
+        "name": "Günstigster Preis für Spiel",
+        "state": {
+          "price": "Aktueller Preis"
+        }
+      }
+    }
+  }
+}
