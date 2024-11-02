@@ -38,37 +38,19 @@ class KeyforSteamDataUpdateCoordinator(DataUpdateCoordinator):
                         response.raise_for_status()
                         data = await response.json()
                         if data.get("success"):
-                            editions = list(data.get("editions", {}).values())
-                            merchants = list(data.get("merchants", {}).values())
-                            _LOGGER.debug("Data fetched successfully: %s", data)
-                            return editions, merchants
+                            # Direkt Zugriff auf die Listen, falls sie bereits Listen sind
+                            editions = data.get("editions", [])
+                            merchants = data.get("merchants", [])
+                            offers = data.get("offers", [])
+                            # _LOGGER.debug("Data fetched successfully: %s", data)
+                            _LOGGER.debug("Data fetched successfully from: %s", url)
+                            return offers, merchants, editions
                         else:
                             _LOGGER.error("Error fetching data: %s", data.get("message", "Unknown error"))
                             raise Exception("Failed to fetch data from KeyforSteam")
                 except Exception as e:
                     _LOGGER.error("Exception occurred while fetching KeyforSteam data: %s", e)
                     raise
-
-async def async_setup_platform(hass: HomeAssistant, config: dict, async_add_entities: AddEntitiesCallback, discovery_info=None):
-    """Set up the KeyforSteam sensor platform."""
-    if discovery_info is None:
-        _LOGGER.error("No discovery info provided; cannot set up platform.")
-        return
-
-    product_id = discovery_info["product_id"]
-    currency = discovery_info.get("currency", "eur")
-    coordinator = KeyforSteamDataUpdateCoordinator(hass, product_id, currency)
-
-    # Initial data fetch
-    try:
-        await coordinator.async_refresh()
-        _LOGGER.debug("Initial data fetched successfully for product_id: %s", product_id)
-    except Exception as e:
-        _LOGGER.error("Error during coordinator refresh: %s", e)
-        return
-
-    sensor = KeyforSteamSensor(coordinator, discovery_info['name'])
-    async_add_entities([sensor], update_before_add=True)
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback):
     """Set up the KeyforSteam sensor from a config entry."""
@@ -79,7 +61,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
 
     coordinator = KeyforSteamDataUpdateCoordinator(hass, product_id, currency)
 
-    # Initial refresh
     try:
         await coordinator.async_refresh()
         _LOGGER.debug("Data fetched successfully for sensor.")
@@ -87,17 +68,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
         _LOGGER.error("Error during coordinator refresh: %s", e)
         return False
 
-    if coordinator.data is None:
-        _LOGGER.error("Coordinator returned no data after refresh.")
-        return False
-
-    # Logging the fetched data
-    _LOGGER.debug("Coordinator data: %s", coordinator.data)
-
     sensor = KeyforSteamSensor(coordinator, entry.title)
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coordinator
-
-    _LOGGER.debug("Adding sensor entity: %s", sensor.name)
     async_add_entities([sensor], update_before_add=True)
 
 class KeyforSteamSensor(SensorEntity):
@@ -120,44 +92,71 @@ class KeyforSteamSensor(SensorEntity):
     def state(self):
         """Return the price of the cheapest offer."""
         if self._coordinator.data:
-            cheapest_offer = self._find_cheapest_offer(self._coordinator.data[0])
+            offers, merchants, editions = self._coordinator.data
+            cheapest_offer = self._find_cheapest_offer(offers)
             if cheapest_offer:
-                return cheapest_offer.get("price")  # Ensure "price" exists
-        return None  # Return None if no price available
+                # Access the price correctly
+                _LOGGER.debug("Handling lowest price: %s", cheapest_offer)
+                price = cheapest_offer['price']
+                return price
+        return None
 
     @property
     def extra_state_attributes(self):
         """Return the state attributes."""
+        attributes = {}
         if self._coordinator.data:
-            cheapest_offer = self._find_cheapest_offer(self._coordinator.data[0])
+            offers, merchants, editions = self._coordinator.data
+            cheapest_offer = self._find_cheapest_offer(offers)
             if cheapest_offer:
-                merchant_id = cheapest_offer.get("merchant_id")
+                merchant_id = cheapest_offer.get('merchant')
+                edition_id = cheapest_offer.get('edition')
+
                 if merchant_id:
-                    merchant_info = next((merchant for merchant in self._coordinator.data[1] if merchant['id'] == merchant_id), None)
+                    merchant_info = next((merchant for merchant in merchants if merchant.get('id') == merchant_id), None)
                     if merchant_info:
-                        self._attributes['merchant_name'] = merchant_info.get("name")
-                        self._attributes['payment_methods'] = merchant_info.get("paymentMethods", [])
+                        attributes['merchant_name'] = merchant_info.get("name")
+                        attributes['payment_methods'] = merchant_info.get("paymentMethods", [])
 
-                self._attributes['cheapest_offer'] = cheapest_offer
+                if edition_id:
+                    edition_info = next((edition for edition in editions if edition.get('id') == edition_id), None)
+                    if edition_info:
+                        attributes['edition_name'] = edition_info.get("name")
 
-        return self._attributes
+                attributes['cheapest_offer'] = cheapest_offer
+
+        return attributes
 
     async def async_update(self):
         """Fetch new state data for the sensor."""
         await self._coordinator.async_refresh()
-        _LOGGER.debug("Sensor updated with data: %s", self._coordinator.data)
 
     def _find_cheapest_offer(self, offers):
         """Find the cheapest offer from the list of offers."""
         _LOGGER.debug("Offers data received: %s", offers)
+        lowest_offer = None
+        lowest_price = float('inf')  # Initialize to a very high number
 
-        if not isinstance(offers, list):
-            _LOGGER.error("Expected a list of offers, but got: %s", type(offers))
-            return None  # Or return an appropriate default value
+        for offer in offers:
+            # Extract the price from the offer
+            price = offer['price']['eur']['price']
 
-        if not offers:
+            # Check if the current offer's price is lower than the lowest found
+            if price < lowest_price:
+                lowest_price = price
+                lowest_offer = offer
+
+        _LOGGER.debug("Handling lowest offer: %s", lowest_offer)
+
+        if lowest_offer:
+            # Extract relevant information
+            lowest_price_info = {
+                'price': lowest_price,
+                'priceCard': lowest_offer['price']['eur']['priceCard'],
+                'merchant': lowest_offer['merchant'],
+                'edition': lowest_offer['edition'],
+                'coupon': lowest_offer['price']['eur']['bestCoupon']['code'] if lowest_offer['price']['eur']['bestCoupon'] else None
+            }
+            return lowest_price_info
+        else:
             return None
-
-        # Search for the cheapest offer and ensure "price" exists
-        cheapest = min((offer for offer in offers if "price" in offer), key=lambda x: x.get("price", float('inf')), default=None)
-        return cheapest
