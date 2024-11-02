@@ -40,6 +40,7 @@ class KeyforSteamDataUpdateCoordinator(DataUpdateCoordinator):
                         if data.get("success"):
                             editions = list(data.get("editions", {}).values())
                             merchants = list(data.get("merchants", {}).values())
+                            _LOGGER.debug("Data fetched successfully: %s", data)
                             return editions, merchants
                         else:
                             _LOGGER.error("Error fetching data: %s", data.get("message", "Unknown error"))
@@ -51,6 +52,7 @@ class KeyforSteamDataUpdateCoordinator(DataUpdateCoordinator):
 async def async_setup_platform(hass: HomeAssistant, config: dict, async_add_entities: AddEntitiesCallback, discovery_info=None):
     """Set up the KeyforSteam sensor platform."""
     if discovery_info is None:
+        _LOGGER.error("No discovery info provided; cannot set up platform.")
         return
 
     product_id = discovery_info["product_id"]
@@ -60,6 +62,7 @@ async def async_setup_platform(hass: HomeAssistant, config: dict, async_add_enti
     # Initial data fetch
     try:
         await coordinator.async_refresh()
+        _LOGGER.debug("Initial data fetched successfully for product_id: %s", product_id)
     except Exception as e:
         _LOGGER.error("Error during coordinator refresh: %s", e)
         return
@@ -87,6 +90,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
     if coordinator.data is None:
         _LOGGER.error("Coordinator returned no data after refresh.")
         return False
+
+    # Logging the fetched data
+    _LOGGER.debug("Coordinator data: %s", coordinator.data)
 
     sensor = KeyforSteamSensor(coordinator, entry.title)
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coordinator
@@ -116,7 +122,7 @@ class KeyforSteamSensor(SensorEntity):
         if self._coordinator.data:
             cheapest_offer = self._find_cheapest_offer(self._coordinator.data[0])
             if cheapest_offer:
-                return cheapest_offer.get("price")  # Hier muss sichergestellt werden, dass "price" existiert
+                return cheapest_offer.get("price")  # Ensure "price" exists
         return None  # Return None if no price available
 
     @property
@@ -152,6 +158,6 @@ class KeyforSteamSensor(SensorEntity):
         if not offers:
             return None
 
-        # Suche nach dem günstigsten Angebot und stelle sicher, dass "price" vorhanden ist
+        # Search for the cheapest offer and ensure "price" exists
         cheapest = min((offer for offer in offers if "price" in offer), key=lambda x: x.get("price", float('inf')), default=None)
         return cheapest
