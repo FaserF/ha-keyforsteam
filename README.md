@@ -1,11 +1,11 @@
-[![hacs_badge](https://img.shields.io/badge/HACS-Default-41BDF5.svg?style=for-the-badge)](https://github.com/hacs/integration)
-# Keyforsteam Homeassistant Sensor
+[![hacs_badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg?style=for-the-badge)](https://github.com/hacs/integration)
+# Key for Steam Homeassistant Sensor
 The `keyforsteam` sensor will give you informations about the the lowest price for a key game.
 
 ## Installation
 ### 1. Using HACS (recommended way)
 
-This integration is a official HACS Integration.
+This integration is a custom HACS Integration.
 
 Open HACS then install the "keyforsteam" integration or use the link below.
 

@@ -22,5 +22,5 @@ class KeyforSteamConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         """Return the options schema for the user input."""
         return vol.Schema({
             vol.Required("product_id"): str,
-            vol.Required("currency", default="EUR"): vol.In(["EUR", "USD"]),
+            vol.Required("currency", default="eur"): vol.In(["eur", "usd"]),
         })

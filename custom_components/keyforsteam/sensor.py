@@ -1,25 +1,87 @@
 import logging
-import requests
-import async_timeout
-from datetime import timedelta
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
-from homeassistant.const import CONF_NAME
-from .const import DOMAIN, DEFAULT_CURRENCY, SCAN_INTERVAL
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.core import HomeAssistant
+import asyncio
+import async_timeout
+import aiohttp
+from datetime import timedelta
 
 _LOGGER = logging.getLogger(__name__)
 
-async def async_setup_entry(hass, entry):
-    """Set up the sensor from a config entry."""
-    product_id = entry.data.get("product_id")
-    currency = entry.data.get("currency", DEFAULT_CURRENCY)
+DOMAIN = "keyforsteam"
+UPDATE_INTERVAL = timedelta(minutes=10)
 
-    _LOGGER.debug("Setting up sensor for product_id: %s, currency: %s", product_id, currency)
+class KeyforSteamDataUpdateCoordinator(DataUpdateCoordinator):
+    """Class to manage fetching KeyforSteam data."""
+
+    def __init__(self, hass: HomeAssistant, product_id: str, currency: str):
+        """Initialize the data update coordinator."""
+        self.product_id = product_id
+        self.currency = currency
+        super().__init__(
+            hass,
+            _LOGGER,
+            name="KeyforSteamDataUpdateCoordinator",  # Name hinzugefügt
+            update_interval=UPDATE_INTERVAL
+        )
+
+    async def _async_update_data(self):
+        """Fetch data from KeyforSteam."""
+        url = f"https://www.keyforsteam.de/wp-admin/admin-ajax.php?action=get_offers&product={self.product_id}&currency={self.currency}&use_beta_offers_display=1"
+
+        async with aiohttp.ClientSession() as session:
+            async with async_timeout.timeout(10):
+                try:
+                    async with session.get(url) as response:
+                        response.raise_for_status()
+                        data = await response.json()
+                        _LOGGER.debug("Fetched data: %s", data)  # Debug log for fetched data
+                        if data.get("success"):
+                            return data.get("editions"), data.get("merchants")
+                        else:
+                            _LOGGER.error("Error fetching data: %s", data.get("message", "Unknown error"))
+                            raise Exception("Failed to fetch data from KeyforSteam")
+                except Exception as e:
+                    _LOGGER.error("Exception occurred while fetching KeyforSteam data: %s", e)
+                    raise
+
+async def async_setup_platform(hass: HomeAssistant, config: dict, async_add_entities, discovery_info=None):
+    """Set up the KeyforSteam sensor platform."""
+    _LOGGER.debug("Setting up KeyforSteam sensor platform.")
+    if discovery_info is None:
+        return
+
+    product_id = discovery_info["product_id"]
+    currency = discovery_info.get("currency", "eur")
+    coordinator = KeyforSteamDataUpdateCoordinator(hass, product_id, currency)
+
+    # Initial data fetch
+    try:
+        await coordinator.async_refresh()
+        _LOGGER.debug("Coordinator data after refresh: %s", coordinator.data)
+    except Exception as e:
+        _LOGGER.error("Error during coordinator refresh: %s", e)
+        return
+
+    # Create and add the sensor
+    sensor = KeyforSteamSensor(coordinator, discovery_info['name'])
+    async_add_entities([sensor], update_before_add=True)
+    _LOGGER.debug("Added KeyforSteam sensor: %s", sensor.name)
+
+async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback):
+    """Set up the KeyforSteam sensor from a config entry."""
+    product_id = entry.data.get("product_id")
+    currency = entry.data.get("currency", "eur")
+
+    _LOGGER.debug("Setting up KeyforSteam sensor for product_id: %s, currency: %s", product_id, currency)
 
     # Create the data update coordinator
     coordinator = KeyforSteamDataUpdateCoordinator(hass, product_id, currency)
 
-    # Refresh coordinator data
+    # Initial refresh
     try:
         await coordinator.async_refresh()
     except Exception as e:
@@ -30,114 +92,38 @@ async def async_setup_entry(hass, entry):
         _LOGGER.error("Coordinator returned no data after refresh.")
         return False
 
-    # Log the coordinator data after refreshing
     _LOGGER.debug("Coordinator data after refresh: %s", coordinator.data)
 
     # Create and register the sensor
     sensor = KeyforSteamSensor(coordinator, entry.title)
-    if sensor is None:
-        _LOGGER.error("Failed to create sensor for KeyforSteam entry.")
-        return False
+    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = sensor
 
-    # Store the sensor in the data structure
-    if DOMAIN not in hass.data:
-        hass.data[DOMAIN] = {}
-    hass.data[DOMAIN]["sensor"] = sensor
-
-    # Load the sensor platform
-    await hass.helpers.discovery.async_load_platform("sensor", DOMAIN, {}, hass.data[DOMAIN])
-    _LOGGER.debug("Sensor platform loaded for KeyforSteam.")
+    async_add_entities([sensor], update_before_add=True)
+    _LOGGER.debug("Successfully set up KeyforSteam sensor.")
     return True
-
-class KeyforSteamDataUpdateCoordinator(DataUpdateCoordinator):
-    """Class to manage fetching KeyforSteam data from the API."""
-
-    def __init__(self, hass, product_id, currency):
-        super().__init__(
-            hass,
-            _LOGGER,
-            name="KeyforSteam",
-            update_interval=timedelta(seconds=SCAN_INTERVAL),
-        )
-        self.product_id = product_id
-        self.currency = currency
-
-    async def _async_update_data(self):
-        """Fetch data from KeyforSteam API."""
-        base_url = "https://www.keyforsteam.de/wp-admin/admin-ajax.php?action=get_offers&product={}&currency={}&use_beta_offers_display=1"
-        if self.currency == "USD":
-            base_url = base_url.replace("www.keyforsteam.de", "www.keyforsteam.com")
-
-        url = base_url.format(self.product_id, self.currency)
-        _LOGGER.debug("Fetching data from URL: %s", url)
-
-        try:
-            with async_timeout.timeout(30):
-                response = await self.hass.async_add_executor_job(requests.get, url)
-                response.raise_for_status()
-        except requests.exceptions.HTTPError as http_err:
-            _LOGGER.error("HTTP error occurred while fetching data: %s", http_err)
-            return None
-        except Exception as e:
-            _LOGGER.error("Error fetching data: %s", e)
-            return None
-
-        try:
-            data = response.json()
-            _LOGGER.debug("Response data: %s", data)
-        except ValueError as json_err:
-            _LOGGER.error("Failed to parse JSON response: %s", json_err)
-            return None
-
-        if not data.get("success"):
-            _LOGGER.error("API response was not successful: %s", data)
-            raise Exception("Failed to fetch data from KeyforSteam")
-
-        offers = data.get("offers", [])
-        if not offers:
-            _LOGGER.warning("No offers found in the response.")
-            return None
-
-        lowest_price = min(
-            (offer["price"]["eur"]["price"] for offer in offers if offer.get("price", {}).get("eur", {}).get("price") is not None),
-            default=None
-        )
-        _LOGGER.debug("Lowest price fetched: %s", lowest_price)
-        return lowest_price
 
 class KeyforSteamSensor(SensorEntity):
     """Representation of a KeyforSteam sensor."""
 
     def __init__(self, coordinator, name):
-        self.coordinator = coordinator
-        self._attr_name = f"{name} lowest price"
-        self._attr_unique_id = f"keyforsteam_{self.coordinator.product_id}"
-        self._attr_state = None
-        self._attr_attributes = {}
+        """Initialize the sensor."""
+        self._coordinator = coordinator
+        self._name = name
+        self._state = None
+        _LOGGER.debug("Initializing sensor: %s", name)  # Debug log for sensor initialization
+
+    @property
+    def name(self):
+        """Return the name of the sensor."""
+        return self._name
 
     @property
     def state(self):
         """Return the state of the sensor."""
-        return self.coordinator.data
-
-    @property
-    def extra_state_attributes(self):
-        """Return the state attributes."""
-        return self._attr_attributes
+        return self._coordinator.data
 
     async def async_update(self):
-        """Update the sensor state."""
-        _LOGGER.debug("Updating sensor state for: %s", self._attr_name)
-        await self.coordinator.async_refresh()
-        self._attr_state = self.coordinator.data
-        _LOGGER.debug("Updated sensor state: %s", self._attr_state)
-
-    async def async_added_to_hass(self):
-        """When entity is added to hass."""
-        self.async_on_remove(
-            async_track_time_interval(
-                self.hass,
-                self.async_update,
-                timedelta(seconds=SCAN_INTERVAL)
-            )
-        )
+        """Fetch new state data for the sensor."""
+        await self._coordinator.async_refresh()
+        _LOGGER.debug("Sensor updated with data: %s", self._coordinator.data)  # Debug log for update data
+        self._state = self._coordinator.data
