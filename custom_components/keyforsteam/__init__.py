@@ -18,6 +18,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.data.setdefault(DOMAIN, {})
 
     try:
+        # Forward the setup of the sensor
         await hass.config_entries.async_forward_entry_setups(entry, ["sensor"])
         _LOGGER.debug("Successfully set up sensor for KeyforSteam entry.")
     except Exception as e:
@@ -30,6 +31,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
     _LOGGER.debug("Unloading KeyforSteam entry with entry_id: %s", entry.entry_id)
-    await hass.config_entries.async_forward_entry_unload(entry, "sensor")
-    hass.data[DOMAIN].pop(entry.entry_id, None)
-    return True
+    unloaded = await hass.config_entries.async_forward_entry_unload(entry, "sensor")
+    if unloaded:
+        hass.data[DOMAIN].pop(entry.entry_id, None)
+        _LOGGER.debug("KeyforSteam entry unloaded successfully.")
+    else:
+        _LOGGER.warning("Failed to unload KeyforSteam entry with entry_id: %s", entry.entry_id)
+    return unloaded
