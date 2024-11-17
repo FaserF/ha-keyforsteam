@@ -29,9 +29,15 @@ Go to Configuration -> Integrations and click on "add integration". Then search 
 
 [![Open your Home Assistant instance and start setting up a new integration.](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start/?domain=keyforsteam)
 
+### Getting the product ID
+Right now there is no nice way to fetch the product ID. The way I am doing it is by going to the keyforsteam page, pressing F12 to open the Browser developer tools -> Go to network -> Have a look for a name beginning like this: "admin-ajax.php?action=get ...
+Then open this and have a look at the Request URL. Please copy the number after "?product="
+
+<img src="images/Get_ProductID.png" alt="Getting the product ID" width="300px">
+
 ### Configuration Variables
 - **product id**: The game product ID from the website
-- **currency**: The currency you want to see the prices in
+- **currency**: The currency you want to see the prices in. IMPORTANT: If the product only has one currency, fetching will fail if another currency is selected.
 
 ## Bug reporting
 Open an issue over at [github issues](https://github.com/FaserF/ha-keyforsteam/issues). Please prefer sending over a log with debugging enabled.
