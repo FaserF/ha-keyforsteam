@@ -38,11 +38,10 @@ class KeyforSteamDataUpdateCoordinator(DataUpdateCoordinator):
                         response.raise_for_status()
                         data = await response.json()
                         if data.get("success"):
-                            # Direkt Zugriff auf die Listen, falls sie bereits Listen sind
-                            editions = data.get("editions", [])
-                            merchants = data.get("merchants", [])
+                            # Wandelt die Dictionaries in Listen um
+                            editions = list(data.get("editions", {}).values())
+                            merchants = list(data.get("merchants", {}).values())
                             offers = data.get("offers", [])
-                            # _LOGGER.debug("Data fetched successfully: %s", data)
                             _LOGGER.debug("Data fetched successfully from: %s", url)
                             return offers, merchants, editions
                         else:
@@ -78,7 +77,7 @@ class KeyforSteamSensor(SensorEntity):
     def __init__(self, coordinator, name):
         """Initialize the sensor."""
         self._coordinator = coordinator
-        self._name = name
+        self._name = f"{coordinator.product_id} KeyforSteam"
         self._state = None
         self._attributes = {}
         _LOGGER.debug("Initializing sensor: %s", name)
@@ -89,16 +88,20 @@ class KeyforSteamSensor(SensorEntity):
         return self._name
 
     @property
+    def unique_id(self):
+        """Return a unique ID for the sensor."""
+        return f"keyforsteam_{self._coordinator.product_id}"
+
+    @property
     def state(self):
         """Return the price of the cheapest offer."""
         if self._coordinator.data:
             offers, merchants, editions = self._coordinator.data
             cheapest_offer = self._find_cheapest_offer(offers)
             if cheapest_offer:
-                # Access the price correctly
                 _LOGGER.debug("Handling lowest price: %s", cheapest_offer)
-                price = cheapest_offer['price']
-                return price
+                return cheapest_offer['price']
+        _LOGGER.warning("No data available for state.")
         return None
 
     @property
@@ -107,23 +110,54 @@ class KeyforSteamSensor(SensorEntity):
         attributes = {}
         if self._coordinator.data:
             offers, merchants, editions = self._coordinator.data
+
+            # Debug log merchants
+            #_LOGGER.debug("Merchants data type: %s", type(merchants))
+            #_LOGGER.debug("Merchants data content: %s", merchants)
+
             cheapest_offer = self._find_cheapest_offer(offers)
             if cheapest_offer:
                 merchant_id = cheapest_offer.get('merchant')
                 edition_id = cheapest_offer.get('edition')
 
-                if merchant_id:
-                    merchant_info = next((merchant for merchant in merchants if merchant.get('id') == merchant_id), None)
-                    if merchant_info:
-                        attributes['merchant_name'] = merchant_info.get("name")
-                        attributes['payment_methods'] = merchant_info.get("paymentMethods", [])
+                attributes['price_base'] = cheapest_offer['price']
+                attributes['priceCard'] = cheapest_offer['priceCard']
+                attributes['pricePayPal'] = cheapest_offer['pricePayPal']
+                attributes['coupon'] = cheapest_offer['coupon']
 
-                if edition_id:
-                    edition_info = next((edition for edition in editions if edition.get('id') == edition_id), None)
-                    if edition_info:
-                        attributes['edition_name'] = edition_info.get("name")
+                # Merchant name aus der Liste extrahieren
+                merchant_info = next(
+                    (merchant for merchant in merchants if isinstance(merchant, dict) and merchant.get('id') == merchant_id),
+                    None
+                )
+                if merchant_info:
+                    attributes['merchant'] = merchant_info.get("name")
+                    attributes['merchant_payment_methods'] = merchant_info.get("paymentMethods", [])
+                else:
+                    # Fallback auf die ID des Händlers, wenn der Name nicht gefunden wurde
+                    attributes['merchant']  = merchant_id
+                    attributes['merchant_payment_methods'] = "unknown"
 
-                attributes['cheapest_offer'] = cheapest_offer
+                # Edition name aus der Liste extrahieren
+                edition_info = next(
+                    (edition for edition in editions if isinstance(edition, dict) and edition.get('id') == edition_id),
+                    None
+                )
+                if edition_info:
+                    attributes['edition'] = edition_info.get("name")
+                else:
+                    # Fallback auf die ID der Edition, wenn der Name nicht gefunden wurde
+                    attributes['edition'] = edition_id
+
+                #attributes['cheapest_offer'] = {
+                #    'price': cheapest_offer['price'],
+                #    'priceCard': cheapest_offer.get('priceCard'),
+                #    'pricePayPal': cheapest_offer.get('pricePayPal'),
+                #    'coupon': cheapest_offer.get('coupon'),
+                #    'merchant': merchant_name,
+                #    'merchant_payment_methods': merchant_payment_methods,
+                #    'edition': edition_name
+                #}
 
         return attributes
 
@@ -133,30 +167,27 @@ class KeyforSteamSensor(SensorEntity):
 
     def _find_cheapest_offer(self, offers):
         """Find the cheapest offer from the list of offers."""
-        _LOGGER.debug("Offers data received: %s", offers)
+        #_LOGGER.debug("Offers data received: %s", offers)
+        _LOGGER.debug("Offers data received")
         lowest_offer = None
         lowest_price = float('inf')  # Initialize to a very high number
 
         for offer in offers:
-            # Extract the price from the offer
-            price = offer['price']['eur']['price']
-
-            # Check if the current offer's price is lower than the lowest found
-            if price < lowest_price:
+            # Safely extract the price
+            price = offer.get('price', {}).get('eur', {}).get('price')
+            if price is not None and price < lowest_price:
                 lowest_price = price
                 lowest_offer = offer
 
         _LOGGER.debug("Handling lowest offer: %s", lowest_offer)
 
         if lowest_offer:
-            # Extract relevant information
-            lowest_price_info = {
+            return {
                 'price': lowest_price,
-                'priceCard': lowest_offer['price']['eur']['priceCard'],
-                'merchant': lowest_offer['merchant'],
-                'edition': lowest_offer['edition'],
-                'coupon': lowest_offer['price']['eur']['bestCoupon']['code'] if lowest_offer['price']['eur']['bestCoupon'] else None
+                'priceCard': lowest_offer.get('price', {}).get('eur', {}).get('priceCard'),
+                'pricePayPal': lowest_offer.get('price', {}).get('eur', {}).get('pricePayPal'),
+                'merchant': lowest_offer.get('merchant'),
+                'edition': lowest_offer.get('edition'),
+                'coupon': lowest_offer.get('price', {}).get('eur', {}).get('bestCoupon', {}).get('code'),
             }
-            return lowest_price_info
-        else:
-            return None
+        return None
