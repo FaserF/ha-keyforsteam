@@ -11,7 +11,7 @@ from datetime import timedelta
 _LOGGER = logging.getLogger(__name__)
 
 DOMAIN = "keyforsteam"
-UPDATE_INTERVAL = timedelta(minutes=10)
+UPDATE_INTERVAL = timedelta(hours=1)
 
 class KeyforSteamDataUpdateCoordinator(DataUpdateCoordinator):
     """Class to manage fetching KeyforSteam data."""
@@ -120,7 +120,7 @@ class KeyforSteamSensor(SensorEntity):
                 merchant_id = cheapest_offer.get('merchant')
                 edition_id = cheapest_offer.get('edition')
 
-                attributes['price_base'] = cheapest_offer['price']
+                attributes['priceBase'] = cheapest_offer['price']
                 attributes['priceCard'] = cheapest_offer['priceCard']
                 attributes['pricePayPal'] = cheapest_offer['pricePayPal']
                 attributes['coupon'] = cheapest_offer['coupon']
