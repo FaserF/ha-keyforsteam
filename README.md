@@ -39,6 +39,30 @@ Then open this and have a look at the Request URL. Please copy the number after 
 - **product id**: The game product ID from the website
 - **currency**: The currency you want to see the prices in. IMPORTANT: If the product only has one currency, fetching will fail if another currency is selected.
 
+## Automation example
+```yaml
+alias: Notify on Game Price Drop
+description: 'Send a notification when the priceCard of the sensor falls below 55.'
+trigger:
+  - platform: numeric_state
+    entity_id: sensor.keyforsteam_<product_id>  # Change <product_id> with the ID of your game
+    attribute: priceCard
+    below: 55
+condition:
+  - condition: template
+    value_template: "{{ as_timestamp(now()) - as_timestamp(states.automation.notify_on_game_price_drop.attributes.last_triggered) | int > 86400 }}" #86400 seconds = 7 days -> Do not trigger the automation more than once a week
+action:
+  - service: notify.notify
+    data:
+      message: >
+        Your game {{ state_attr('sensor.keyforsteam_<product_id>', 'game_id') }} has reached the price
+        {{ state_attr('sensor.keyforsteam_<product_id>', 'priceCard') }} at the merchant
+        {{ state_attr('sensor.keyforsteam_<product_id>', 'merchant') }} with Code
+        {{ state_attr('sensor.keyforsteam_<product_id>', 'coupon') }} -
+        Check it out at https://www.keyforsteam.de/
+mode: single
+```
+
 ## Bug reporting
 Open an issue over at [github issues](https://github.com/FaserF/ha-keyforsteam/issues). Please prefer sending over a log with debugging enabled.
 

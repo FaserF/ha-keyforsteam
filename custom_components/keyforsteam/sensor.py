@@ -77,7 +77,7 @@ class KeyforSteamSensor(SensorEntity):
     def __init__(self, coordinator, name):
         """Initialize the sensor."""
         self._coordinator = coordinator
-        self._name = f"{coordinator.product_id} KeyforSteam"
+        self._name = f"KeyforSteam {coordinator.product_id}"
         self._state = None
         self._attributes = {}
         _LOGGER.debug("Initializing sensor: %s", name)
