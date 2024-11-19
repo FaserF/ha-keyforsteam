@@ -56,7 +56,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
     _LOGGER.debug("Setting up KeyforSteam sensor for entry: %s", entry.entry_id)
 
     product_id = entry.data.get("product_id")
-    currency = entry.data.get("currency", "eur")
+    currency = entry.data.get("currency", "EUR")
 
     coordinator = KeyforSteamDataUpdateCoordinator(hass, product_id, currency)
 
@@ -91,6 +91,22 @@ class KeyforSteamSensor(SensorEntity):
     def unique_id(self):
         """Return a unique ID for the sensor."""
         return f"keyforsteam_{self._coordinator.product_id}"
+    
+    @property
+    def unit_of_measurement(self):
+        """Return the unit of measurement based on the currency."""
+        currency = self._coordinator.currency.lower()
+        if currency == "eur":
+            return "€"
+        elif currency == "usd":
+            return "$"
+        else:
+            return "€"
+
+    @property
+    def icon(self):
+        """Return the icon for the sensor."""
+        return "mdi:gamepad-variant"
 
     @property
     def state(self):
