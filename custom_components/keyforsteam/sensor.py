@@ -56,7 +56,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
     _LOGGER.debug("Setting up KeyforSteam sensor for entry: %s", entry.entry_id)
 
     product_id = entry.data.get("product_id")
-    currency = entry.data.get("currency", "EUR")
+    currency = entry.data.get("currency", "eur")
+    currency = currency.lower()
 
     coordinator = KeyforSteamDataUpdateCoordinator(hass, product_id, currency)
 
@@ -138,7 +139,7 @@ class KeyforSteamSensor(SensorEntity):
 
                 attributes['priceBase'] = cheapest_offer['price']
                 attributes['priceCard'] = cheapest_offer['priceCard']
-                attributes['pricePayPal'] = cheapest_offer['pricePayPal']
+                attributes['pricePaypal'] = cheapest_offer['pricePaypal']
                 attributes['coupon'] = cheapest_offer['coupon']
 
                 # Merchant name aus der Liste extrahieren
@@ -168,7 +169,7 @@ class KeyforSteamSensor(SensorEntity):
                 #attributes['cheapest_offer'] = {
                 #    'price': cheapest_offer['price'],
                 #    'priceCard': cheapest_offer.get('priceCard'),
-                #    'pricePayPal': cheapest_offer.get('pricePayPal'),
+                #    'pricePaypal': cheapest_offer.get('pricePaypal'),
                 #    'coupon': cheapest_offer.get('coupon'),
                 #    'merchant': merchant_name,
                 #    'merchant_payment_methods': merchant_payment_methods,
@@ -201,7 +202,7 @@ class KeyforSteamSensor(SensorEntity):
             return {
                 'price': lowest_price,
                 'priceCard': lowest_offer.get('price', {}).get('eur', {}).get('priceCard'),
-                'pricePayPal': lowest_offer.get('price', {}).get('eur', {}).get('pricePayPal'),
+                'pricePaypal': lowest_offer.get('price', {}).get('eur', {}).get('pricePaypal'),
                 'merchant': lowest_offer.get('merchant'),
                 'edition': lowest_offer.get('edition'),
                 'coupon': lowest_offer.get('price', {}).get('eur', {}).get('bestCoupon', {}).get('code'),
