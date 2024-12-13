@@ -62,7 +62,7 @@ body:
       placeholder:
       description: >
         Please note down the game id you have used in the setup of the integration.
-    - type: markdown
+  - type: markdown
     attributes:
       value: |
         # Details
