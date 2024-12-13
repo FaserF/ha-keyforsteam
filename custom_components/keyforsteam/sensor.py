@@ -205,6 +205,15 @@ class KeyforSteamSensor(SensorEntity):
                 'pricePaypal': lowest_offer.get('price', {}).get('eur', {}).get('pricePaypal'),
                 'merchant': lowest_offer.get('merchant'),
                 'edition': lowest_offer.get('edition'),
-                'coupon': lowest_offer.get('price', {}).get('eur', {}).get('bestCoupon', {}).get('code'),
+                'coupon': (
+                    lowest_offer.get('price', {})
+                    .get('eur', {})
+                    .get('bestCoupon', {})
+                    .get('code') if lowest_offer and 
+                                lowest_offer.get('price') and 
+                                lowest_offer.get('price').get('eur') and 
+                                lowest_offer.get('price').get('eur').get('bestCoupon') 
+                    else None
+                ),
             }
         return None
