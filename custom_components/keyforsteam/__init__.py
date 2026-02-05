@@ -7,7 +7,7 @@ from .const import DOMAIN, CONF_PRICE_ALERT_THRESHOLD, DEFAULT_PRICE_ALERT_THRES
 
 _LOGGER = logging.getLogger(__name__)
 
-PLATFORMS = ["sensor", "binary_sensor"]
+PLATFORMS = ["sensor", "binary_sensor", "button"]
 
 
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:

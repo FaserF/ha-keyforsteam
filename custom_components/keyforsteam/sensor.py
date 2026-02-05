@@ -23,6 +23,7 @@ from .const import (
     UPDATE_INTERVAL_HOURS,
     REPAIR_THRESHOLD_HOURS,
     REPAIR_API_FAILURE,
+    REPAIR_PRODUCT_NOT_FOUND,
     ISSUE_TRACKER_URL,
 )
 
@@ -45,7 +46,8 @@ class KeyforSteamDataUpdateCoordinator(DataUpdateCoordinator):
         # Failure tracking for HA Repairs
         self.consecutive_failures = 0
         self.last_successful_fetch = None
-        self.repair_created = False
+        self.api_repair_created = False
+        self.not_found_repair_created = False
 
         super().__init__(
             hass,
@@ -56,7 +58,6 @@ class KeyforSteamDataUpdateCoordinator(DataUpdateCoordinator):
 
     def _build_product_url(self):
         """Build product page URL from product slug or name."""
-        # Use provided slug, or create from name/id
         if self.product_slug:
             slug = self.product_slug
         elif self.product_name:
@@ -64,7 +65,6 @@ class KeyforSteamDataUpdateCoordinator(DataUpdateCoordinator):
             slug = re.sub(r'[^a-z0-9]+', '-', slug)
             slug = slug.strip('-')
         else:
-            # Fallback: use product_id as slug if it's not numeric
             if not str(self.product_id).isdigit():
                 slug = self.product_id.lower()
                 slug = re.sub(r'[^a-z0-9]+', '-', slug)
@@ -73,7 +73,6 @@ class KeyforSteamDataUpdateCoordinator(DataUpdateCoordinator):
                 _LOGGER.error("Cannot build URL: no slug or name available")
                 return None
 
-        # Use KeyForSteam for EUR, AllKeyShop for others
         if self.currency == "eur":
             return KEYFORSTEAM_PRODUCT_URL.format(slug=slug)
         else:
@@ -117,7 +116,6 @@ class KeyforSteamDataUpdateCoordinator(DataUpdateCoordinator):
             "last_updated": datetime.now().isoformat(),
         }
 
-        # Parse aggregate rating
         rating_data = product_data.get("aggregateRating", {})
         if rating_data:
             result["rating"] = {
@@ -125,14 +123,12 @@ class KeyforSteamDataUpdateCoordinator(DataUpdateCoordinator):
                 "count": rating_data.get("ratingCount"),
             }
 
-        # Handle AggregateOffer
         if offers_data.get("@type") == "AggregateOffer":
             result["low_price"] = offers_data.get("lowPrice")
             result["high_price"] = offers_data.get("highPrice")
             result["currency"] = offers_data.get("priceCurrency", "EUR")
             result["offer_count"] = offers_data.get("offerCount", 0)
 
-            # Parse individual offers
             individual_offers = offers_data.get("offers", [])
             for offer in individual_offers:
                 if isinstance(offer, dict):
@@ -144,14 +140,22 @@ class KeyforSteamDataUpdateCoordinator(DataUpdateCoordinator):
                         "availability": "InStock" if "InStock" in str(offer.get("availability", "")) else "Unknown",
                     })
 
-        # Sort offers by price
         result["offers"].sort(key=lambda x: x.get("price", float('inf')))
 
         return result
 
-    async def _check_and_create_repair(self):
-        """Check if we should create a repair issue."""
-        if self.repair_created:
+    async def _handle_api_repair(self, failed: bool):
+        """Handle calculation and creation/resolution of API failure repair."""
+        from homeassistant.helpers import issue_registry as ir
+        issue_id = f"{REPAIR_API_FAILURE}_{self.product_id}"
+
+        if not failed:
+            if self.api_repair_created:
+                ir.async_delete_issue(self.hass, DOMAIN, issue_id)
+                self.api_repair_created = False
+            return
+
+        if self.api_repair_created:
             return
 
         if self.last_successful_fetch is None:
@@ -160,37 +164,53 @@ class KeyforSteamDataUpdateCoordinator(DataUpdateCoordinator):
             hours_since_success = (datetime.now() - self.last_successful_fetch).total_seconds() / 3600
 
         if hours_since_success >= REPAIR_THRESHOLD_HOURS:
-            from homeassistant.helpers import issue_registry as ir
             ir.async_create_issue(
                 self.hass,
                 DOMAIN,
-                f"{REPAIR_API_FAILURE}_{self.product_id}",
+                issue_id,
                 is_fixable=False,
                 is_persistent=True,
                 severity=ir.IssueSeverity.WARNING,
                 translation_key=REPAIR_API_FAILURE,
                 translation_placeholders={"issue_url": ISSUE_TRACKER_URL},
             )
-            self.repair_created = True
-            _LOGGER.warning("Created repair issue for %s after %d hours of failures",
-                          self.product_id, hours_since_success)
+            self.api_repair_created = True
 
-    async def _resolve_repair(self):
-        """Resolve repair issue after successful fetch."""
-        if not self.repair_created:
+    async def _handle_not_found_repair(self, is_404: bool):
+        """Handle calculation and creation/resolution of 404 repair."""
+        from homeassistant.helpers import issue_registry as ir
+        issue_id = f"{REPAIR_PRODUCT_NOT_FOUND}_{self.product_id}"
+
+        if not is_404:
+            if self.not_found_repair_created:
+                ir.async_delete_issue(self.hass, DOMAIN, issue_id)
+                self.not_found_repair_created = False
             return
 
-        from homeassistant.helpers import issue_registry as ir
-        ir.async_delete_issue(self.hass, DOMAIN, f"{REPAIR_API_FAILURE}_{self.product_id}")
-        self.repair_created = False
-        _LOGGER.info("Resolved repair issue for %s", self.product_id)
+        if self.not_found_repair_created:
+            return
+
+        ir.async_create_issue(
+            self.hass,
+            DOMAIN,
+            issue_id,
+            is_fixable=False,
+            is_persistent=True,
+            severity=ir.IssueSeverity.ERROR,
+            translation_key=REPAIR_PRODUCT_NOT_FOUND,
+            translation_placeholders={
+                "product_name": self.product_name or self.product_id,
+                "issue_url": ISSUE_TRACKER_URL
+            },
+        )
+        self.not_found_repair_created = True
 
     async def _async_update_data(self):
         """Fetch data from product page JSON-LD."""
         url = self._build_product_url()
         if not url:
             self.consecutive_failures += 1
-            await self._check_and_create_repair()
+            await self._handle_api_repair(True)
             raise UpdateFailed("Could not build product URL")
 
         _LOGGER.debug("Fetching product data from: %s", url)
@@ -207,74 +227,103 @@ class KeyforSteamDataUpdateCoordinator(DataUpdateCoordinator):
                     async with session.get(url, headers=headers) as response:
                         if response.status == 404:
                             self.consecutive_failures += 1
-                            await self._check_and_create_repair()
+                            await self._handle_not_found_repair(True)
                             raise UpdateFailed(f"Product page not found: {url}")
+
                         response.raise_for_status()
                         html = await response.text()
 
-                        # Extract JSON-LD Product data
                         product_data = self._extract_json_ld(html)
                         if not product_data:
                             self.consecutive_failures += 1
-                            await self._check_and_create_repair()
+                            await self._handle_api_repair(True)
                             raise UpdateFailed("No Product data found on page")
 
-                        # Parse offers
                         offers = self._parse_offers(product_data, url)
-                        _LOGGER.debug("Found %d offers, lowest price: %s %s",
-                                     len(offers["offers"]),
-                                     offers.get("low_price"),
-                                     offers.get("currency"))
 
                         # Success - reset failure tracking
                         self.consecutive_failures = 0
                         self.last_successful_fetch = datetime.now()
-                        await self._resolve_repair()
+                        await self._handle_api_repair(False)
+                        await self._handle_not_found_repair(False)
 
                         return offers
 
                 except aiohttp.ClientResponseError as e:
                     self.consecutive_failures += 1
-                    await self._check_and_create_repair()
+                    if e.status == 404:
+                        await self._handle_not_found_repair(True)
+                    else:
+                        await self._handle_api_repair(True)
                     raise UpdateFailed(f"HTTP error: {e}")
                 except Exception as e:
                     self.consecutive_failures += 1
-                    await self._check_and_create_repair()
+                    await self._handle_api_repair(True)
                     raise UpdateFailed(f"Error: {e}")
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback):
-    """Set up the KeyforSteam sensor from a config entry."""
-    _LOGGER.debug("Setting up KeyforSteam sensor for entry: %s", entry.entry_id)
+    """Set up the KeyforSteam sensors from a config entry."""
+    _LOGGER.debug("Setting up KeyforSteam sensors for entry: %s", entry.entry_id)
 
     coordinator = KeyforSteamDataUpdateCoordinator(hass, entry)
 
     await coordinator.async_config_entry_first_refresh()
 
-    sensor = KeyforSteamPriceSensor(coordinator, entry)
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = {"coordinator": coordinator}
-    async_add_entities([sensor], update_before_add=True)
+
+    entities = [
+        KeyforSteamPriceSensor(coordinator, entry),
+        KeyforSteamRatingSensor(coordinator, entry),
+        KeyforSteamOfferCountSensor(coordinator, entry),
+    ]
+    async_add_entities(entities, update_before_add=True)
 
 
-class KeyforSteamPriceSensor(SensorEntity):
-    """Representation of a KeyforSteam price sensor."""
-
-    _attr_device_class = SensorDeviceClass.MONETARY
-    _attr_state_class = SensorStateClass.MEASUREMENT
-    _attr_icon = "mdi:gamepad-variant"
+class KeyforSteamBaseEntity(SensorEntity):
+    """Base class for KeyforSteam sensors."""
 
     def __init__(self, coordinator: KeyforSteamDataUpdateCoordinator, entry: ConfigEntry):
         """Initialize the sensor."""
         self._coordinator = coordinator
         self._entry = entry
-        self._attr_unique_id = f"keyforsteam_{coordinator.product_id}_price"
         self._attr_has_entity_name = True
-        self._attr_translation_key = "lowest_price"
 
     @property
-    def name(self):
-        """Return the name of the sensor."""
-        return f"{self._coordinator.product_name or self._coordinator.product_id} Price"
+    def available(self):
+        """Return if entity is available."""
+        return self._coordinator.last_update_success
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        """Return device information for grouping sensors."""
+        return DeviceInfo(
+            identifiers={(DOMAIN, self._coordinator.product_id)},
+            name=self._coordinator.product_name or f"Game {self._coordinator.product_id}",
+            manufacturer="AllKeyShop",
+            model="Game Price Tracker",
+            entry_type="service",
+        )
+
+    async def async_added_to_hass(self):
+        """Subscribe to updates."""
+        self.async_on_remove(
+            self._coordinator.async_add_listener(self.async_write_ha_state)
+        )
+
+
+class KeyforSteamPriceSensor(KeyforSteamBaseEntity):
+    """Representation of a KeyforSteam price sensor."""
+
+    _attr_device_class = SensorDeviceClass.MONETARY
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_icon = "mdi:gamepad-variant"
+    _attr_translation_key = "lowest_price"
+
+    def __init__(self, coordinator: KeyforSteamDataUpdateCoordinator, entry: ConfigEntry):
+        """Initialize the sensor."""
+        super().__init__(coordinator, entry)
+        self._attr_unique_id = f"keyforsteam_{coordinator.product_id}_price"
 
     @property
     def native_unit_of_measurement(self):
@@ -290,11 +339,6 @@ class KeyforSteamPriceSensor(SensorEntity):
         if self._coordinator.data:
             return self._coordinator.data.get("low_price")
         return None
-
-    @property
-    def available(self):
-        """Return if entity is available."""
-        return self._coordinator.last_update_success
 
     @property
     def extra_state_attributes(self):
@@ -314,47 +358,74 @@ class KeyforSteamPriceSensor(SensorEntity):
             "last_updated": data.get("last_updated"),
         }
 
-        # Rating info
         rating = data.get("rating")
         if rating:
             attributes["rating"] = rating.get("value")
             attributes["rating_count"] = rating.get("count")
 
-        # Best offer details
         offers = data.get("offers", [])
         if offers:
             best_offer = offers[0]
             attributes["best_seller"] = best_offer.get("seller")
             attributes["best_price"] = best_offer.get("price")
 
-            # Top 5 offers
             top_offers = []
             for offer in offers[:5]:
                 top_offers.append(f"{offer.get('seller')}: {offer.get('price')}€")
             attributes["top_offers"] = top_offers
-
-            # All offers (limited to 10)
             attributes["all_offers"] = offers[:10]
 
         return attributes
 
+
+class KeyforSteamRatingSensor(KeyforSteamBaseEntity):
+    """Representation of a KeyforSteam rating sensor."""
+
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_icon = "mdi:star"
+    _attr_translation_key = "rating"
+
+    def __init__(self, coordinator: KeyforSteamDataUpdateCoordinator, entry: ConfigEntry):
+        """Initialize the sensor."""
+        super().__init__(coordinator, entry)
+        self._attr_unique_id = f"keyforsteam_{coordinator.product_id}_rating"
+
     @property
-    def device_info(self) -> DeviceInfo:
-        """Return device information for grouping sensors."""
-        return DeviceInfo(
-            identifiers={(DOMAIN, self._coordinator.product_id)},
-            name=self._coordinator.product_name or f"Game {self._coordinator.product_id}",
-            manufacturer="AllKeyShop",
-            model="Game Price Tracker",
-            entry_type="service",
-        )
+    def native_value(self):
+        """Return the rating."""
+        if self._coordinator.data:
+            rating_data = self._coordinator.data.get("rating")
+            if rating_data:
+                return rating_data.get("value")
+        return None
 
-    async def async_update(self):
-        """Fetch new state data for the sensor."""
-        await self._coordinator.async_request_refresh()
+    @property
+    def extra_state_attributes(self):
+        """Return the state attributes."""
+        if not self._coordinator.data:
+            return {}
 
-    async def async_added_to_hass(self):
-        """Subscribe to updates."""
-        self.async_on_remove(
-            self._coordinator.async_add_listener(self.async_write_ha_state)
-        )
+        rating_data = self._coordinator.data.get("rating")
+        if rating_data:
+            return {"rating_count": rating_data.get("count")}
+        return {}
+
+
+class KeyforSteamOfferCountSensor(KeyforSteamBaseEntity):
+    """Representation of a KeyforSteam offer count sensor."""
+
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_icon = "mdi:store"
+    _attr_translation_key = "offer_count"
+
+    def __init__(self, coordinator: KeyforSteamDataUpdateCoordinator, entry: ConfigEntry):
+        """Initialize the sensor."""
+        super().__init__(coordinator, entry)
+        self._attr_unique_id = f"keyforsteam_{coordinator.product_id}_offer_count"
+
+    @property
+    def native_value(self):
+        """Return the offer count."""
+        if self._coordinator.data:
+            return self._coordinator.data.get("offer_count")
+        return None

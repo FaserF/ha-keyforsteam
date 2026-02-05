@@ -50,11 +50,25 @@
     "sensor": {
       "lowest_price": {
         "name": "Niedrigster Preis"
+      },
+      "rating": {
+        "name": "Bewertung"
+      },
+      "offer_count": {
+        "name": "Anzahl Angebote"
       }
     },
     "binary_sensor": {
       "price_alert": {
         "name": "Preisalarm"
+      },
+      "stock": {
+        "name": "Lagerstatus"
+      }
+    },
+    "button": {
+      "update_button": {
+        "name": "Jetzt aktualisieren"
       }
     }
   },
@@ -62,6 +76,10 @@
     "api_failure": {
       "title": "KeyforSteam API-Verbindung fehlgeschlagen",
       "description": "Die Integration konnte seit über 24 Stunden keine Preisdaten abrufen. Dies kann darauf hindeuten, dass sich die API geändert hat.\n\nBitte suchen Sie nach Updates oder melden Sie dieses Problem: {issue_url}"
+    },
+    "product_not_found": {
+      "title": "KeyforSteam Produkt nicht gefunden",
+      "description": "Das Produkt '{product_name}' wurde auf KeyforSteam nicht gefunden (404 Fehler). Dies kann daran liegen, dass das Spiel entfernt wurde oder die URL sich geändert hat.\n\nBitte konfigurieren Sie die Integration neu oder melden Sie dieses Problem, falls es weiterhin besteht: {issue_url}"
     }
   }
 }
