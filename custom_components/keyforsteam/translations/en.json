@@ -21,10 +21,16 @@
           "allow_accounts": "Include Accounts/Logins (often cheaper, not a key)",
           "payment_method": "Payment Method (price comparison)"
         }
-      },
-      "abort": {
-        "already_configured": "This game is already configured."
       }
+    },
+    "error": {
+      "no_games_found": "No games found matching your search. Please try a different search term.",
+      "invalid_selection": "Invalid game selection. Please try again.",
+      "required": "This field is required.",
+      "cannot_connect": "Unable to connect to the price tracking service."
+    },
+    "abort": {
+      "already_configured": "This game is already configured."
     }
   },
   "selector": {
