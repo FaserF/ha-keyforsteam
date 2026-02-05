@@ -7,6 +7,10 @@
   "config_flow": true,
   "documentation": "https://github.com/faserf/ha-keyforsteam",
   "iot_class": "cloud_polling",
+  "integration_type": "service",
+  "aliases": [
+    "AllKeyShop"
+  ],
   "issue_tracker": "https://github.com/faserf/ha-keyforsteam/issues",
   "platforms": [
     "sensor",
