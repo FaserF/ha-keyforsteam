@@ -9,7 +9,12 @@
   "iot_class": "cloud_polling",
   "integration_type": "service",
   "aliases": [
-    "AllKeyShop"
+    "AllKeyShop",
+    "All Key Shop",
+    "allkeyshop",
+    "all key shop",
+    "aks",
+    "AKS"
   ],
   "issue_tracker": "https://github.com/faserf/ha-keyforsteam/issues",
   "version": "2.0.0"
