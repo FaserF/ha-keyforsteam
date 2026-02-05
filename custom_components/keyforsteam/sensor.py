@@ -1,4 +1,7 @@
+"""KeyForSteam sensor using AllKeyShop JSON-LD structured data."""
 import logging
+import re
+import json
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from homeassistant.config_entries import ConfigEntry
@@ -13,13 +16,18 @@ _LOGGER = logging.getLogger(__name__)
 DOMAIN = "keyforsteam"
 UPDATE_INTERVAL = timedelta(hours=1)
 
+# Base URLs for product pages
+KEYFORSTEAM_URL = "https://www.keyforsteam.de/{slug}-key-kaufen-preisvergleich/"
+ALLKEYSHOP_URL = "https://www.allkeyshop.com/blog/buy-{slug}-cd-key-compare-prices/"
+
+
 class KeyforSteamDataUpdateCoordinator(DataUpdateCoordinator):
-    """Class to manage fetching KeyforSteam data."""
+    """Class to manage fetching KeyforSteam data from JSON-LD."""
 
     def __init__(self, hass: HomeAssistant, product_id: str, currency: str):
         """Initialize the data update coordinator."""
         self.product_id = product_id
-        self.currency = currency
+        self.currency = currency.lower()
         super().__init__(
             hass,
             _LOGGER,
@@ -27,28 +35,139 @@ class KeyforSteamDataUpdateCoordinator(DataUpdateCoordinator):
             update_interval=UPDATE_INTERVAL
         )
 
+    def _build_product_url(self):
+        """Build product page URL from product_id (slug or URL)."""
+        product_id = self.product_id.strip()
+
+        # If already a URL, use it directly
+        if product_id.startswith("http"):
+            return product_id
+
+        # Create slug from product name
+        slug = product_id.lower()
+        slug = re.sub(r'[^a-z0-9]+', '-', slug)
+        slug = slug.strip('-')
+
+        # Use KeyForSteam for EUR, AllKeyShop for USD
+        if self.currency == "eur":
+            return KEYFORSTEAM_URL.format(slug=slug)
+        else:
+            return ALLKEYSHOP_URL.format(slug=slug)
+
+    def _extract_json_ld(self, html):
+        """Extract JSON-LD Product schema from HTML."""
+        # Find all JSON-LD script blocks
+        pattern = r'<script[^>]*type=["\']application/ld\+json["\'][^>]*>(.*?)</script>'
+        matches = re.findall(pattern, html, re.DOTALL | re.IGNORECASE)
+
+        for match in matches:
+            try:
+                data = json.loads(match)
+                # Check if this is a Product schema
+                if isinstance(data, dict):
+                    if data.get("@type") == "Product":
+                        return data
+                    # Check in @graph array
+                    if "@graph" in data:
+                        for item in data["@graph"]:
+                            if isinstance(item, dict) and item.get("@type") == "Product":
+                                return item
+            except json.JSONDecodeError:
+                continue
+
+        return None
+
+    def _parse_offers(self, product_data):
+        """Parse offers from Product JSON-LD schema."""
+        offers_data = product_data.get("offers", {})
+
+        result = {
+            "product_id": product_data.get("@id"),
+            "name": product_data.get("name"),
+            "image": product_data.get("image"),
+            "low_price": None,
+            "high_price": None,
+            "currency": "EUR",
+            "offer_count": 0,
+            "offers": [],
+            "rating": None,
+        }
+
+        # Parse aggregate rating
+        rating_data = product_data.get("aggregateRating", {})
+        if rating_data:
+            result["rating"] = {
+                "value": rating_data.get("ratingValue"),
+                "count": rating_data.get("ratingCount"),
+            }
+
+        # Handle AggregateOffer
+        if offers_data.get("@type") == "AggregateOffer":
+            result["low_price"] = offers_data.get("lowPrice")
+            result["high_price"] = offers_data.get("highPrice")
+            result["currency"] = offers_data.get("priceCurrency", "EUR")
+            result["offer_count"] = offers_data.get("offerCount", 0)
+
+            # Parse individual offers
+            individual_offers = offers_data.get("offers", [])
+            for offer in individual_offers:
+                if isinstance(offer, dict):
+                    seller = offer.get("seller", {})
+                    result["offers"].append({
+                        "price": float(offer.get("price", 0)),
+                        "currency": offer.get("priceCurrency", "EUR"),
+                        "seller": seller.get("name") if isinstance(seller, dict) else str(seller),
+                        "availability": "InStock" if "InStock" in str(offer.get("availability", "")) else "Unknown",
+                    })
+
+        # Sort offers by price
+        result["offers"].sort(key=lambda x: x.get("price", float('inf')))
+
+        return result
+
     async def _async_update_data(self):
-        """Fetch data from KeyforSteam."""
-        url = f"https://www.keyforsteam.de/wp-admin/admin-ajax.php?action=get_offers&product={self.product_id}&currency={self.currency}&use_beta_offers_display=1"
+        """Fetch data from product page JSON-LD."""
+        url = self._build_product_url()
+        _LOGGER.debug("Fetching product data from: %s", url)
+
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Accept-Language": "de-DE,de;q=0.9,en-US;q=0.8,en;q=0.7",
+        }
 
         async with aiohttp.ClientSession() as session:
-            async with async_timeout.timeout(10):
+            async with async_timeout.timeout(30):
                 try:
-                    async with session.get(url) as response:
+                    async with session.get(url, headers=headers) as response:
+                        if response.status == 404:
+                            _LOGGER.error("Product page not found: %s", url)
+                            raise Exception(f"Product page not found: {url}")
                         response.raise_for_status()
-                        data = await response.json()
-                        if data.get("success"):
-                            editions = list(data.get("editions", {}).values())
-                            merchants = list(data.get("merchants", {}).values())
-                            offers = data.get("offers", [])
-                            _LOGGER.debug("Data fetched successfully from: %s", url)
-                            return offers, merchants, editions
-                        else:
-                            _LOGGER.error("Error fetching data: %s", data.get("message", "Unknown error"))
-                            raise Exception("Failed to fetch data from KeyforSteam")
-                except Exception as e:
-                    _LOGGER.error("Exception occurred while fetching KeyforSteam data: %s", e)
+                        html = await response.text()
+
+                        # Extract JSON-LD Product data
+                        product_data = self._extract_json_ld(html)
+                        if not product_data:
+                            _LOGGER.error("No Product JSON-LD found on page: %s", url)
+                            raise Exception("No Product data found on page")
+
+                        # Parse offers
+                        offers = self._parse_offers(product_data)
+                        _LOGGER.debug("Found %d offers, lowest price: %s %s",
+                                     len(offers["offers"]),
+                                     offers.get("low_price"),
+                                     offers.get("currency"))
+
+                        return offers
+
+                except aiohttp.ClientResponseError as e:
+                    _LOGGER.error("HTTP error fetching product page: %s", e)
                     raise
+                except Exception as e:
+                    _LOGGER.error("Error fetching KeyforSteam data: %s", e)
+                    raise
+
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback):
     """Set up the KeyforSteam sensor from a config entry."""
@@ -69,6 +188,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
     sensor = KeyforSteamSensor(coordinator, entry.title)
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coordinator
     async_add_entities([sensor], update_before_add=True)
+
 
 class KeyforSteamSensor(SensorEntity):
     """Representation of a KeyforSteam sensor."""
@@ -94,8 +214,10 @@ class KeyforSteamSensor(SensorEntity):
     @property
     def unit_of_measurement(self):
         """Return the unit of measurement based on the currency."""
-        currency = self._coordinator.currency.lower()
-        return "€" if currency == "eur" else "$"
+        if self._coordinator.data:
+            currency = self._coordinator.data.get("currency", "EUR")
+            return "€" if currency == "EUR" else "$"
+        return "€"
 
     @property
     def icon(self):
@@ -104,13 +226,11 @@ class KeyforSteamSensor(SensorEntity):
 
     @property
     def state(self):
-        """Return the price of the cheapest offer."""
+        """Return the lowest price."""
         if self._coordinator.data:
-            offers, merchants, editions = self._coordinator.data
-            cheapest_offer = self._find_cheapest_offer(offers)
-            if cheapest_offer:
-                _LOGGER.debug("Handling lowest price: %s", cheapest_offer)
-                return cheapest_offer['price']
+            low_price = self._coordinator.data.get("low_price")
+            if low_price is not None:
+                return low_price
         _LOGGER.warning("No data available for state.")
         return None
 
@@ -119,37 +239,33 @@ class KeyforSteamSensor(SensorEntity):
         """Return the state attributes."""
         attributes = {}
         if self._coordinator.data:
-            offers, merchants, editions = self._coordinator.data
+            data = self._coordinator.data
 
-            cheapest_offer = self._find_cheapest_offer(offers)
-            if cheapest_offer:
-                merchant_id = cheapest_offer.get('merchant')
-                edition_id = cheapest_offer.get('edition')
+            attributes["product_name"] = data.get("name")
+            attributes["product_id"] = data.get("product_id")
+            attributes["low_price"] = data.get("low_price")
+            attributes["high_price"] = data.get("high_price")
+            attributes["currency"] = data.get("currency")
+            attributes["offer_count"] = data.get("offer_count")
 
-                attributes['priceBase'] = cheapest_offer['price']
-                attributes['priceCard'] = cheapest_offer['priceCard']
-                attributes['pricePaypal'] = cheapest_offer['pricePaypal']
-                attributes['coupon'] = cheapest_offer['coupon']
+            # Rating info
+            rating = data.get("rating")
+            if rating:
+                attributes["rating"] = rating.get("value")
+                attributes["rating_count"] = rating.get("count")
 
-                merchant_info = next(
-                    (merchant for merchant in merchants if isinstance(merchant, dict) and merchant.get('id') == merchant_id),
-                    None
-                )
-                if merchant_info:
-                    attributes['merchant'] = merchant_info.get("name")
-                    attributes['merchant_payment_methods'] = merchant_info.get("paymentMethods", [])
-                else:
-                    attributes['merchant'] = merchant_id
-                    attributes['merchant_payment_methods'] = "unknown"
+            # Best offer details
+            offers = data.get("offers", [])
+            if offers:
+                best_offer = offers[0]  # Already sorted by price
+                attributes["best_seller"] = best_offer.get("seller")
+                attributes["best_price"] = best_offer.get("price")
 
-                edition_info = next(
-                    (edition for edition in editions if isinstance(edition, dict) and edition.get('id') == edition_id),
-                    None
-                )
-                if edition_info:
-                    attributes['edition'] = edition_info.get("name")
-                else:
-                    attributes['edition'] = edition_id
+                # Top 5 offers summary
+                top_offers = []
+                for offer in offers[:5]:
+                    top_offers.append(f"{offer.get('seller')}: {offer.get('price')}€")
+                attributes["top_offers"] = top_offers
 
         return attributes
 
@@ -159,7 +275,7 @@ class KeyforSteamSensor(SensorEntity):
         return {
             "identifiers": {(DOMAIN, "keyforsteam_group")},
             "name": "KeyforSteam",
-            "manufacturer": "KeyforSteam API",
+            "manufacturer": "AllKeyShop",
             "model": "Game Price Tracker",
             "entry_type": "service",
         }
@@ -167,35 +283,3 @@ class KeyforSteamSensor(SensorEntity):
     async def async_update(self):
         """Fetch new state data for the sensor."""
         await self._coordinator.async_refresh()
-
-    def _find_cheapest_offer(self, offers):
-        """Find the cheapest offer from the list of offers."""
-        _LOGGER.debug("Offers data received")
-        lowest_offer = None
-        lowest_price = float('inf')
-
-        for offer in offers:
-            price = offer.get('price', {}).get('eur', {}).get('price')
-            if price is not None and price < lowest_price:
-                lowest_price = price
-                lowest_offer = offer
-
-        if lowest_offer:
-            return {
-                'price': lowest_price,
-                'priceCard': lowest_offer.get('price', {}).get('eur', {}).get('priceCard'),
-                'pricePaypal': lowest_offer.get('price', {}).get('eur', {}).get('pricePaypal'),
-                'merchant': lowest_offer.get('merchant'),
-                'edition': lowest_offer.get('edition'),
-                'coupon': (
-                    lowest_offer.get('price', {})
-                    .get('eur', {})
-                    .get('bestCoupon', {})
-                    .get('code') if lowest_offer and 
-                                lowest_offer.get('price') and 
-                                lowest_offer.get('price').get('eur') and 
-                                lowest_offer.get('price').get('eur').get('bestCoupon') 
-                    else None
-                ),
-            }
-        return None
