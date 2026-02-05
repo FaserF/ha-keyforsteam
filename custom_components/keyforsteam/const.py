@@ -14,6 +14,7 @@ REPAIR_THRESHOLD_HOURS = 24
 
 # Repair Issue Identifiers
 REPAIR_API_FAILURE = "api_failure"
+REPAIR_PRODUCT_NOT_FOUND = "product_not_found"
 ISSUE_TRACKER_URL = "https://github.com/FaserF/ha-keyforsteam/issues"
 
 # Supported Currencies

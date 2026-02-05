@@ -91,9 +91,29 @@ This integration supports all localized versions of the AllKeyShop network. It a
 
 ---
 
+## Data Source & API 🛠️
+
+This integration uses a combination of two reliable methods to provide up-to-date gaming data:
+
+### 1. Game Search API
+For the initial search and autocomplete during setup, the integration accesses the **AllKeyShop Catalog API**:
+- **Endpoint**: `https://www.allkeyshop.com/api/v2/vaks.php?action=gameNames`
+- **Data**: A comprehensive list of over 195,000 games with their unique IDs and standard names.
+- **Search Optimization**: The integration uses a custom scoring system to prioritize base games over DLCs and Map Packs.
+
+### 2. Live Price Extraction (JSON-LD)
+To avoid unstable web scraping and ensure high data accuracy, the integration extracts structured **JSON-LD (Schema.org)** data directly from the product pages:
+- **How it works**: Every product page contains a hidden `<script type="application/ld+json">` block that contains the official product metadata (ID, Price, Seller, Availability).
+- **Stability**: This is a standard format used for search engine optimization (SEO), making it much more stable than parsing HTML elements.
+- **Auto-Selection**: The integration automatically chooses the best website based on your configured currency (see [Supported Websites](#supported-websites-🌍)).
+
+---
+
 ## Automation Examples 🤖
 
-### 1. Notify when price drops below target
+<details>
+<summary><b>1. Notify when price drops below target</b></summary>
+
 ```yaml
 alias: "Game Price Drop: Call of Duty"
 trigger:
@@ -110,8 +130,11 @@ action:
       data:
         url: "{{ state_attr('sensor.keyforsteam_call_of_duty_black_ops_6_price', 'product_url') }}"
 ```
+</details>
 
-### 2. Daily Price Summary
+<details>
+<summary><b>2. Daily Price Summary</b></summary>
+
 ```yaml
 alias: "Daily Gaming Deals Summary"
 trigger:
@@ -126,8 +149,11 @@ action:
         Elden Ring: {{ states('sensor.keyforsteam_elden_ring_price') }}€
         Factorio: {{ states('sensor.keyforsteam_factorio_price') }}€
 ```
+</details>
 
-### 3. Change Light Color when a Deal is Active
+<details>
+<summary><b>3. Change Light Color when a Deal is Active</b></summary>
+
 ```yaml
 alias: "Gaming Deal Visual Alert"
 trigger:
@@ -144,6 +170,7 @@ action:
       color_name: green
       brightness: 255
 ```
+</details>
 
 ---
 
