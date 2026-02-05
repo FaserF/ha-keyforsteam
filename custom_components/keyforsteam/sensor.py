@@ -2,72 +2,94 @@
 import logging
 import re
 import json
-from homeassistant.components.sensor import SensorEntity
-from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
+from datetime import datetime, timedelta
+from homeassistant.components.sensor import SensorEntity, SensorDeviceClass, SensorStateClass
+from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.entity import DeviceInfo
 import async_timeout
 import aiohttp
-from datetime import timedelta
+
+from .const import (
+    DOMAIN,
+    KEYFORSTEAM_PRODUCT_URL,
+    ALLKEYSHOP_PRODUCT_URL,
+    CONF_PRODUCT_ID,
+    CONF_PRODUCT_NAME,
+    CONF_PRODUCT_SLUG,
+    CONF_CURRENCY,
+    UPDATE_INTERVAL_HOURS,
+    REPAIR_THRESHOLD_HOURS,
+    REPAIR_API_FAILURE,
+    ISSUE_TRACKER_URL,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
-DOMAIN = "keyforsteam"
-UPDATE_INTERVAL = timedelta(hours=1)
-
-# Base URLs for product pages
-KEYFORSTEAM_URL = "https://www.keyforsteam.de/{slug}-key-kaufen-preisvergleich/"
-ALLKEYSHOP_URL = "https://www.allkeyshop.com/blog/buy-{slug}-cd-key-compare-prices/"
+UPDATE_INTERVAL = timedelta(hours=UPDATE_INTERVAL_HOURS)
 
 
 class KeyforSteamDataUpdateCoordinator(DataUpdateCoordinator):
     """Class to manage fetching KeyforSteam data from JSON-LD."""
 
-    def __init__(self, hass: HomeAssistant, product_id: str, currency: str):
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry):
         """Initialize the data update coordinator."""
-        self.product_id = product_id
-        self.currency = currency.lower()
+        self.entry = entry
+        self.product_id = entry.data.get(CONF_PRODUCT_ID, "")
+        self.product_name = entry.data.get(CONF_PRODUCT_NAME, "")
+        self.product_slug = entry.data.get(CONF_PRODUCT_SLUG, "")
+        self.currency = entry.data.get(CONF_CURRENCY, "eur").lower()
+
+        # Failure tracking for HA Repairs
+        self.consecutive_failures = 0
+        self.last_successful_fetch = None
+        self.repair_created = False
+
         super().__init__(
             hass,
             _LOGGER,
-            name="KeyforSteamDataUpdateCoordinator",
+            name=f"KeyforSteam_{self.product_id}",
             update_interval=UPDATE_INTERVAL
         )
 
     def _build_product_url(self):
-        """Build product page URL from product_id (slug or URL)."""
-        product_id = self.product_id.strip()
-
-        # If already a URL, use it directly
-        if product_id.startswith("http"):
-            return product_id
-
-        # Create slug from product name
-        slug = product_id.lower()
-        slug = re.sub(r'[^a-z0-9]+', '-', slug)
-        slug = slug.strip('-')
-
-        # Use KeyForSteam for EUR, AllKeyShop for USD
-        if self.currency == "eur":
-            return KEYFORSTEAM_URL.format(slug=slug)
+        """Build product page URL from product slug or name."""
+        # Use provided slug, or create from name/id
+        if self.product_slug:
+            slug = self.product_slug
+        elif self.product_name:
+            slug = self.product_name.lower()
+            slug = re.sub(r'[^a-z0-9]+', '-', slug)
+            slug = slug.strip('-')
         else:
-            return ALLKEYSHOP_URL.format(slug=slug)
+            # Fallback: use product_id as slug if it's not numeric
+            if not str(self.product_id).isdigit():
+                slug = self.product_id.lower()
+                slug = re.sub(r'[^a-z0-9]+', '-', slug)
+                slug = slug.strip('-')
+            else:
+                _LOGGER.error("Cannot build URL: no slug or name available")
+                return None
+
+        # Use KeyForSteam for EUR, AllKeyShop for others
+        if self.currency == "eur":
+            return KEYFORSTEAM_PRODUCT_URL.format(slug=slug)
+        else:
+            return ALLKEYSHOP_PRODUCT_URL.format(slug=slug)
 
     def _extract_json_ld(self, html):
         """Extract JSON-LD Product schema from HTML."""
-        # Find all JSON-LD script blocks
         pattern = r'<script[^>]*type=["\']application/ld\+json["\'][^>]*>(.*?)</script>'
         matches = re.findall(pattern, html, re.DOTALL | re.IGNORECASE)
 
         for match in matches:
             try:
                 data = json.loads(match)
-                # Check if this is a Product schema
                 if isinstance(data, dict):
                     if data.get("@type") == "Product":
                         return data
-                    # Check in @graph array
                     if "@graph" in data:
                         for item in data["@graph"]:
                             if isinstance(item, dict) and item.get("@type") == "Product":
@@ -77,20 +99,22 @@ class KeyforSteamDataUpdateCoordinator(DataUpdateCoordinator):
 
         return None
 
-    def _parse_offers(self, product_data):
+    def _parse_offers(self, product_data, url):
         """Parse offers from Product JSON-LD schema."""
         offers_data = product_data.get("offers", {})
 
         result = {
-            "product_id": product_data.get("@id"),
-            "name": product_data.get("name"),
+            "product_id": product_data.get("@id") or self.product_id,
+            "name": product_data.get("name") or self.product_name,
             "image": product_data.get("image"),
+            "product_url": url,
             "low_price": None,
             "high_price": None,
             "currency": "EUR",
             "offer_count": 0,
             "offers": [],
             "rating": None,
+            "last_updated": datetime.now().isoformat(),
         }
 
         # Parse aggregate rating
@@ -125,9 +149,50 @@ class KeyforSteamDataUpdateCoordinator(DataUpdateCoordinator):
 
         return result
 
+    async def _check_and_create_repair(self):
+        """Check if we should create a repair issue."""
+        if self.repair_created:
+            return
+
+        if self.last_successful_fetch is None:
+            hours_since_success = REPAIR_THRESHOLD_HOURS + 1
+        else:
+            hours_since_success = (datetime.now() - self.last_successful_fetch).total_seconds() / 3600
+
+        if hours_since_success >= REPAIR_THRESHOLD_HOURS:
+            from homeassistant.helpers import issue_registry as ir
+            ir.async_create_issue(
+                self.hass,
+                DOMAIN,
+                f"{REPAIR_API_FAILURE}_{self.product_id}",
+                is_fixable=False,
+                is_persistent=True,
+                severity=ir.IssueSeverity.WARNING,
+                translation_key=REPAIR_API_FAILURE,
+                translation_placeholders={"issue_url": ISSUE_TRACKER_URL},
+            )
+            self.repair_created = True
+            _LOGGER.warning("Created repair issue for %s after %d hours of failures",
+                          self.product_id, hours_since_success)
+
+    async def _resolve_repair(self):
+        """Resolve repair issue after successful fetch."""
+        if not self.repair_created:
+            return
+
+        from homeassistant.helpers import issue_registry as ir
+        ir.async_delete_issue(self.hass, DOMAIN, f"{REPAIR_API_FAILURE}_{self.product_id}")
+        self.repair_created = False
+        _LOGGER.info("Resolved repair issue for %s", self.product_id)
+
     async def _async_update_data(self):
         """Fetch data from product page JSON-LD."""
         url = self._build_product_url()
+        if not url:
+            self.consecutive_failures += 1
+            await self._check_and_create_repair()
+            raise UpdateFailed("Could not build product URL")
+
         _LOGGER.debug("Fetching product data from: %s", url)
 
         headers = {
@@ -141,145 +206,155 @@ class KeyforSteamDataUpdateCoordinator(DataUpdateCoordinator):
                 try:
                     async with session.get(url, headers=headers) as response:
                         if response.status == 404:
-                            _LOGGER.error("Product page not found: %s", url)
-                            raise Exception(f"Product page not found: {url}")
+                            self.consecutive_failures += 1
+                            await self._check_and_create_repair()
+                            raise UpdateFailed(f"Product page not found: {url}")
                         response.raise_for_status()
                         html = await response.text()
 
                         # Extract JSON-LD Product data
                         product_data = self._extract_json_ld(html)
                         if not product_data:
-                            _LOGGER.error("No Product JSON-LD found on page: %s", url)
-                            raise Exception("No Product data found on page")
+                            self.consecutive_failures += 1
+                            await self._check_and_create_repair()
+                            raise UpdateFailed("No Product data found on page")
 
                         # Parse offers
-                        offers = self._parse_offers(product_data)
+                        offers = self._parse_offers(product_data, url)
                         _LOGGER.debug("Found %d offers, lowest price: %s %s",
                                      len(offers["offers"]),
                                      offers.get("low_price"),
                                      offers.get("currency"))
 
+                        # Success - reset failure tracking
+                        self.consecutive_failures = 0
+                        self.last_successful_fetch = datetime.now()
+                        await self._resolve_repair()
+
                         return offers
 
                 except aiohttp.ClientResponseError as e:
-                    _LOGGER.error("HTTP error fetching product page: %s", e)
-                    raise
+                    self.consecutive_failures += 1
+                    await self._check_and_create_repair()
+                    raise UpdateFailed(f"HTTP error: {e}")
                 except Exception as e:
-                    _LOGGER.error("Error fetching KeyforSteam data: %s", e)
-                    raise
+                    self.consecutive_failures += 1
+                    await self._check_and_create_repair()
+                    raise UpdateFailed(f"Error: {e}")
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback):
     """Set up the KeyforSteam sensor from a config entry."""
     _LOGGER.debug("Setting up KeyforSteam sensor for entry: %s", entry.entry_id)
 
-    product_id = entry.data.get("product_id")
-    currency = entry.data.get("currency", "eur").lower()
+    coordinator = KeyforSteamDataUpdateCoordinator(hass, entry)
 
-    coordinator = KeyforSteamDataUpdateCoordinator(hass, product_id, currency)
+    await coordinator.async_config_entry_first_refresh()
 
-    try:
-        await coordinator.async_refresh()
-        _LOGGER.debug("Data fetched successfully for sensor.")
-    except Exception as e:
-        _LOGGER.error("Error during coordinator refresh: %s", e)
-        return False
-
-    sensor = KeyforSteamSensor(coordinator, entry.title)
-    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coordinator
+    sensor = KeyforSteamPriceSensor(coordinator, entry)
+    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = {"coordinator": coordinator}
     async_add_entities([sensor], update_before_add=True)
 
 
-class KeyforSteamSensor(SensorEntity):
-    """Representation of a KeyforSteam sensor."""
+class KeyforSteamPriceSensor(SensorEntity):
+    """Representation of a KeyforSteam price sensor."""
 
-    def __init__(self, coordinator, name):
+    _attr_device_class = SensorDeviceClass.MONETARY
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_icon = "mdi:gamepad-variant"
+
+    def __init__(self, coordinator: KeyforSteamDataUpdateCoordinator, entry: ConfigEntry):
         """Initialize the sensor."""
         self._coordinator = coordinator
-        self._name = f"KeyforSteam {coordinator.product_id}"
-        self._state = None
-        self._attributes = {}
-        _LOGGER.debug("Initializing sensor: %s", name)
+        self._entry = entry
+        self._attr_unique_id = f"keyforsteam_{coordinator.product_id}_price"
+        self._attr_has_entity_name = True
+        self._attr_translation_key = "lowest_price"
 
     @property
     def name(self):
         """Return the name of the sensor."""
-        return self._name
+        return f"{self._coordinator.product_name or self._coordinator.product_id} Price"
 
     @property
-    def unique_id(self):
-        """Return a unique ID for the sensor."""
-        return f"keyforsteam_{self._coordinator.product_id}"
-
-    @property
-    def unit_of_measurement(self):
+    def native_unit_of_measurement(self):
         """Return the unit of measurement based on the currency."""
         if self._coordinator.data:
             currency = self._coordinator.data.get("currency", "EUR")
-            return "€" if currency == "EUR" else "$"
+            return {"EUR": "€", "USD": "$", "GBP": "£"}.get(currency, currency)
         return "€"
 
     @property
-    def icon(self):
-        """Return the icon for the sensor."""
-        return "mdi:gamepad-variant"
-
-    @property
-    def state(self):
+    def native_value(self):
         """Return the lowest price."""
         if self._coordinator.data:
-            low_price = self._coordinator.data.get("low_price")
-            if low_price is not None:
-                return low_price
-        _LOGGER.warning("No data available for state.")
+            return self._coordinator.data.get("low_price")
         return None
+
+    @property
+    def available(self):
+        """Return if entity is available."""
+        return self._coordinator.last_update_success
 
     @property
     def extra_state_attributes(self):
         """Return the state attributes."""
-        attributes = {}
-        if self._coordinator.data:
-            data = self._coordinator.data
+        if not self._coordinator.data:
+            return {}
 
-            attributes["product_name"] = data.get("name")
-            attributes["product_id"] = data.get("product_id")
-            attributes["low_price"] = data.get("low_price")
-            attributes["high_price"] = data.get("high_price")
-            attributes["currency"] = data.get("currency")
-            attributes["offer_count"] = data.get("offer_count")
+        data = self._coordinator.data
+        attributes = {
+            "product_name": data.get("name"),
+            "product_id": data.get("product_id"),
+            "product_url": data.get("product_url"),
+            "low_price": data.get("low_price"),
+            "high_price": data.get("high_price"),
+            "currency": data.get("currency"),
+            "offer_count": data.get("offer_count"),
+            "last_updated": data.get("last_updated"),
+        }
 
-            # Rating info
-            rating = data.get("rating")
-            if rating:
-                attributes["rating"] = rating.get("value")
-                attributes["rating_count"] = rating.get("count")
+        # Rating info
+        rating = data.get("rating")
+        if rating:
+            attributes["rating"] = rating.get("value")
+            attributes["rating_count"] = rating.get("count")
 
-            # Best offer details
-            offers = data.get("offers", [])
-            if offers:
-                best_offer = offers[0]  # Already sorted by price
-                attributes["best_seller"] = best_offer.get("seller")
-                attributes["best_price"] = best_offer.get("price")
+        # Best offer details
+        offers = data.get("offers", [])
+        if offers:
+            best_offer = offers[0]
+            attributes["best_seller"] = best_offer.get("seller")
+            attributes["best_price"] = best_offer.get("price")
 
-                # Top 5 offers summary
-                top_offers = []
-                for offer in offers[:5]:
-                    top_offers.append(f"{offer.get('seller')}: {offer.get('price')}€")
-                attributes["top_offers"] = top_offers
+            # Top 5 offers
+            top_offers = []
+            for offer in offers[:5]:
+                top_offers.append(f"{offer.get('seller')}: {offer.get('price')}€")
+            attributes["top_offers"] = top_offers
+
+            # All offers (limited to 10)
+            attributes["all_offers"] = offers[:10]
 
         return attributes
 
     @property
-    def device_info(self):
+    def device_info(self) -> DeviceInfo:
         """Return device information for grouping sensors."""
-        return {
-            "identifiers": {(DOMAIN, "keyforsteam_group")},
-            "name": "KeyforSteam",
-            "manufacturer": "AllKeyShop",
-            "model": "Game Price Tracker",
-            "entry_type": "service",
-        }
+        return DeviceInfo(
+            identifiers={(DOMAIN, self._coordinator.product_id)},
+            name=self._coordinator.product_name or f"Game {self._coordinator.product_id}",
+            manufacturer="AllKeyShop",
+            model="Game Price Tracker",
+            entry_type="service",
+        )
 
     async def async_update(self):
         """Fetch new state data for the sensor."""
-        await self._coordinator.async_refresh()
+        await self._coordinator.async_request_refresh()
+
+    async def async_added_to_hass(self):
+        """Subscribe to updates."""
+        self.async_on_remove(
+            self._coordinator.async_add_listener(self.async_write_ha_state)
+        )
