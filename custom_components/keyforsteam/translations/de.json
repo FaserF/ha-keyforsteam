@@ -23,24 +23,18 @@
         }
       }
     },
-    "selector": {
-      "payment_method": {
-        "options": {
-          "base": "Basispreis (ohne Gebühren)",
-          "card": "Kreditkartenpreis",
-          "paypal": "PayPal-Preis",
-          "lowest_fees": "Geringste Gebühren (Bester Preis)"
-        }
-      }
-    },
-    "error": {
-      "no_games_found": "Keine Spiele gefunden, die deiner Suche entsprechen. Bitte versuche es mit einem anderen Suchbegriff.",
-      "invalid_selection": "Ungültige Spielauswahl. Bitte versuche es erneut.",
-      "required": "Dieses Feld ist erforderlich.",
-      "cannot_connect": "Verbindung zum Preisverfolgungsdienst nicht möglich."
-    },
     "abort": {
       "already_configured": "Dieses Spiel ist bereits konfiguriert."
+    }
+  },
+  "selector": {
+    "payment_method": {
+      "options": {
+        "base": "Basispreis (ohne Gebühren)",
+        "card": "Kreditkartenpreis",
+        "paypal": "PayPal-Preis",
+        "lowest_fees": "Geringste Gebühren (Bester Preis)"
+      }
     }
   },
   "options": {
