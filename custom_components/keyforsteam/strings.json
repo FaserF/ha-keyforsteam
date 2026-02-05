@@ -1,13 +1,5 @@
 {
-  "title": "KeyforSteam",
-  "aliases": [
-    "AllKeyShop",
-    "All Key Shop",
-    "allkeyshop",
-    "all key shop",
-    "aks",
-    "AKS"
-  ],
+  "title": "KeyforSteam (AllKeyShop)",
   "config": {
     "step": {
       "user": {
