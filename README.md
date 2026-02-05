@@ -13,9 +13,24 @@ Track game prices from **KeyForSteam** (AllKeyShop) directly in Home Assistant. 
 - **Game Search**: Easily find and add games using the built-in search with autocomplete.
 - **Price Tracking**: Monitor the lowest available price for any game in EUR, USD, or GBP.
 - **Detailed Attributes**: Access seller names, all available offers, product URLs, and ratings.
-- **Price Alerts**: Built-in binary sensor for configurable price thresholds.
-- **HA Repairs Service**: Automatic notification if the API changes or data cannot be fetched for 24 hours.
+- **Additional Sensors**: Separate entities for **Rating**, **Offer Count**, and **Stock Status**.
+- **Manual Refresh**: Use the "Update Now" button to trigger an immediate price check.
+- **HA Repairs Service**: Automatic notification if the API changes or data cannot be fetched (24h failure or 404 Not Found).
 - **Diagnostics**: Detailed diagnostic information for easier troubleshooting.
+
+---
+
+## Supported Websites 🌍
+
+This integration supports all localized versions of the AllKeyShop network. It automatically selects the best site based on your currency:
+
+| Currency | Primary Website | URL |
+|----------|-----------------|-----|
+| **EUR**  | KeyForSteam (DE) | [keyforsteam.de](https://www.keyforsteam.de) |
+| **USD**  | AllKeyShop (US) | [allkeyshop.com](https://www.allkeyshop.com) |
+| **GBP**  | AllKeyShop (UK) | [allkeyshop.com](https://www.allkeyshop.com) |
+
+*Note: The integration uses JSON-LD structured data from these sites to provide stable price tracking.*
 
 ---
 
@@ -57,9 +72,22 @@ Track game prices from **KeyForSteam** (AllKeyShop) directly in Home Assistant. 
   - `top_offers`: List of the top 5 cheapest deals.
   - `product_url`: Direct link to the price comparison page.
 
+### Rating Sensor (`sensor.keyforsteam_<game>_rating`)
+- **State**: Average user rating (e.g., 4.5).
+- **Attributes**: `rating_count`.
+
+### Offer Count Sensor (`sensor.keyforsteam_<game>_offer_count`)
+- **State**: Number of stores selling the game.
+
+### Stock Status (`binary_sensor.keyforsteam_<game>_stock`)
+- **State**: `on` if at least one offer is available.
+
 ### Price Alert (`binary_sensor.keyforsteam_<game>_price_alert`)
 - **State**: `on` if price is below the threshold set in integration options.
 - **Configuration**: Set the threshold in the integration's **Configure** menu.
+
+### Update Button (`button.keyforsteam_<game>_update`)
+- **Action**: Immediately refresh the game data.
 
 ---
 
