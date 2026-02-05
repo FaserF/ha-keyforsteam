@@ -1,12 +1,16 @@
-{
   "domain": "keyforsteam",
   "name": "Keyforsteam",
   "codeowners": [
     "@faserf"
   ],
   "config_flow": true,
-  "documentation": "https://github.com/faserf/ha-keyforsteam#readme",
+  "documentation": "https://github.com/faserf/ha-keyforsteam",
   "iot_class": "cloud_polling",
   "issue_tracker": "https://github.com/faserf/ha-keyforsteam/issues",
-  "version": "1.0.2"
+  "platforms": [
+    "sensor",
+    "binary_sensor",
+    "diagnostics"
+  ],
+  "version": "1.1.0"
 }

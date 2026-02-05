@@ -3,38 +3,65 @@
   "config": {
     "step": {
       "user": {
-        "title": "Gib Produkt-ID und Währung ein",
-        "description": "Bitte gib die Produkt-ID und die Währung an, um den aktuellen günstigsten Preis zu erhalten.",
+        "title": "Nach einem Spiel suchen",
+        "description": "Suchen Sie nach einem Spiel, um Preise zu verfolgen. Wir haben {games_count} Spiele in unserem Katalog.",
         "data": {
-          "product_id": "Produkt-ID",
+          "game_query": "Spielname"
+        },
+        "data_description": {
+          "game_query": "Geben Sie den Namen des Spiels ein, das Sie verfolgen möchten (z. B. 'FIFA' oder 'Call of Duty')"
+        }
+      },
+      "select": {
+        "title": "Spiel und Währung auswählen",
+        "description": "Wählen Sie das Spiel aus den Suchergebnissen aus und wählen Sie Ihre bevorzugte Währung.",
+        "data": {
+          "game_selection": "Spiel",
           "currency": "Währung"
         }
       }
     },
     "error": {
-      "invalid_product_id": "Ungültige Produkt-ID. Bitte wähle eine gültige Produkt-ID.",
-      "invalid_currency": "Ungültige Währung. Bitte wähle eine gültige Währung."
+      "no_games_found": "Keine Spiele gefunden, die Ihrer Suche entsprechen. Bitte versuchen Sie es mit einem anderen Suchbegriff.",
+      "invalid_selection": "Ungültige Spielauswahl. Bitte versuchen Sie es erneut.",
+      "required": "Dieses Feld ist erforderlich.",
+      "cannot_connect": "Verbindung zum Preisverfolgungsdienst nicht möglich."
+    },
+    "abort": {
+      "already_configured": "Dieses Spiel ist bereits konfiguriert."
     }
   },
   "options": {
     "step": {
       "init": {
-        "title": "KeyforSteam Integrationsoptionen",
-        "description": "Konfiguriere die Einstellungen für die KeyforSteam-Integration.",
+        "title": "KeyforSteam Optionen",
+        "description": "Konfigurieren Sie Preisalarme und andere Einstellungen.",
         "data": {
+          "price_alert_threshold": "Preisalarm-Schwellenwert",
           "currency": "Währung"
+        },
+        "data_description": {
+          "price_alert_threshold": "Lassen Sie sich benachrichtigen, wenn der Preis unter diesen Wert fällt (0 = deaktiviert)"
         }
       }
     }
   },
   "entity": {
     "sensor": {
-      "keyforsteam_lowest_price": {
-        "name": "Günstigster Preis für Spiel",
-        "state": {
-          "price": "Aktueller Preis"
-        }
+      "lowest_price": {
+        "name": "Niedrigster Preis"
       }
+    },
+    "binary_sensor": {
+      "price_alert": {
+        "name": "Preisalarm"
+      }
+    }
+  },
+  "issues": {
+    "api_failure": {
+      "title": "KeyforSteam API-Verbindung fehlgeschlagen",
+      "description": "Die Integration konnte seit über 24 Stunden keine Preisdaten abrufen. Dies kann darauf hindeuten, dass sich die API geändert hat.\n\nBitte suchen Sie nach Updates oder melden Sie dieses Problem: {issue_url}"
     }
   }
 }
