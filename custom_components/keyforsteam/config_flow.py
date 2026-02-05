@@ -14,6 +14,8 @@ from homeassistant.helpers.selector import (
     TextSelector,
     TextSelectorConfig,
     TextSelectorType,
+    BooleanSelector,
+    BooleanSelectorConfig,
 )
 
 from .const import (
@@ -24,6 +26,12 @@ from .const import (
     CONF_PRODUCT_SLUG,
     CONF_CURRENCY,
     CONF_PRICE_ALERT_THRESHOLD,
+    CONF_ALLOW_ACCOUNTS,
+    CONF_PAYMENT_METHOD,
+    PAYMENT_METHOD_BASE,
+    PAYMENT_METHOD_CARD,
+    PAYMENT_METHOD_PAYPAL,
+    PAYMENT_METHOD_LOWEST_FEES,
     DEFAULT_CURRENCY,
     DEFAULT_PRICE_ALERT_THRESHOLD,
 )
@@ -40,6 +48,7 @@ class KeyforSteamConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         """Initialize the config flow."""
         self._games_cache = None
         self._selected_game = None
+        self._search_results = []
 
     async def _fetch_games_catalog(self):
         """Fetch games catalog from AllKeyShop API."""
@@ -155,6 +164,8 @@ class KeyforSteamConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             selected_id = user_input.get("game_selection")
             currency = user_input.get(CONF_CURRENCY, DEFAULT_CURRENCY)
+            allow_accounts = user_input.get(CONF_ALLOW_ACCOUNTS, False)
+            payment_method = user_input.get(CONF_PAYMENT_METHOD, PAYMENT_METHOD_LOWEST_FEES)
 
             # Find selected game
             selected_game = None
@@ -179,6 +190,8 @@ class KeyforSteamConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         CONF_PRODUCT_NAME: game_name,
                         CONF_PRODUCT_SLUG: game_slug,
                         CONF_CURRENCY: currency,
+                        CONF_ALLOW_ACCOUNTS: allow_accounts,
+                        CONF_PAYMENT_METHOD: payment_method,
                     }
                 )
             else:
@@ -207,6 +220,21 @@ class KeyforSteamConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                             {"value": "gbp", "label": "GBP (£)"},
                         ],
                         mode=SelectSelectorMode.DROPDOWN,
+                    )
+                ),
+                vol.Optional(CONF_ALLOW_ACCOUNTS, default=False): BooleanSelector(
+                    BooleanSelectorConfig()
+                ),
+                vol.Required(CONF_PAYMENT_METHOD, default=PAYMENT_METHOD_LOWEST_FEES): SelectSelector(
+                    SelectSelectorConfig(
+                        options=[
+                            {"value": PAYMENT_METHOD_BASE, "label": "base"},
+                            {"value": PAYMENT_METHOD_CARD, "label": "card"},
+                            {"value": PAYMENT_METHOD_PAYPAL, "label": "paypal"},
+                            {"value": PAYMENT_METHOD_LOWEST_FEES, "label": "lowest_fees"},
+                        ],
+                        mode=SelectSelectorMode.DROPDOWN,
+                        translation_key="payment_method",
                     )
                 ),
             }),
@@ -238,10 +266,16 @@ class KeyforSteamOptionsFlow(config_entries.OptionsFlow):
         data = self.config_entry.data
 
         current_threshold = options.get(
-            CONF_PRICE_ALERT_THRESHOLD, DEFAULT_PRICE_ALERT_THRESHOLD
+            CONF_PRICE_ALERT_THRESHOLD, data.get(CONF_PRICE_ALERT_THRESHOLD, DEFAULT_PRICE_ALERT_THRESHOLD)
         )
         current_currency = options.get(
             CONF_CURRENCY, data.get(CONF_CURRENCY, DEFAULT_CURRENCY)
+        )
+        current_allow_accounts = options.get(
+            CONF_ALLOW_ACCOUNTS, data.get(CONF_ALLOW_ACCOUNTS, False)
+        )
+        current_payment_method = options.get(
+            CONF_PAYMENT_METHOD, data.get(CONF_PAYMENT_METHOD, PAYMENT_METHOD_LOWEST_FEES)
         )
 
         return self.async_show_form(
@@ -262,6 +296,25 @@ class KeyforSteamOptionsFlow(config_entries.OptionsFlow):
                             {"value": "gbp", "label": "GBP (£)"},
                         ],
                         mode=SelectSelectorMode.DROPDOWN,
+                    )
+                ),
+                vol.Optional(
+                    CONF_ALLOW_ACCOUNTS,
+                    default=current_allow_accounts
+                ): BooleanSelector(BooleanSelectorConfig()),
+                vol.Optional(
+                    CONF_PAYMENT_METHOD,
+                    default=current_payment_method
+                ): SelectSelector(
+                    SelectSelectorConfig(
+                        options=[
+                            {"value": PAYMENT_METHOD_BASE, "label": "base"},
+                            {"value": PAYMENT_METHOD_CARD, "label": "card"},
+                            {"value": PAYMENT_METHOD_PAYPAL, "label": "paypal"},
+                            {"value": PAYMENT_METHOD_LOWEST_FEES, "label": "lowest_fees"},
+                        ],
+                        mode=SelectSelectorMode.DROPDOWN,
+                        translation_key="payment_method",
                     )
                 ),
             }),

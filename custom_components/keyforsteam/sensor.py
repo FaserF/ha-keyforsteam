@@ -20,6 +20,12 @@ from .const import (
     CONF_PRODUCT_NAME,
     CONF_PRODUCT_SLUG,
     CONF_CURRENCY,
+    CONF_ALLOW_ACCOUNTS,
+    CONF_PAYMENT_METHOD,
+    PAYMENT_METHOD_BASE,
+    PAYMENT_METHOD_CARD,
+    PAYMENT_METHOD_PAYPAL,
+    PAYMENT_METHOD_LOWEST_FEES,
     UPDATE_INTERVAL_HOURS,
     REPAIR_THRESHOLD_HOURS,
     REPAIR_API_FAILURE,
@@ -42,6 +48,14 @@ class KeyforSteamDataUpdateCoordinator(DataUpdateCoordinator):
         self.product_name = entry.data.get(CONF_PRODUCT_NAME, "")
         self.product_slug = entry.data.get(CONF_PRODUCT_SLUG, "")
         self.currency = entry.data.get(CONF_CURRENCY, "eur").lower()
+
+        # Merge options and data for settings
+        self.allow_accounts = entry.options.get(
+            CONF_ALLOW_ACCOUNTS, entry.data.get(CONF_ALLOW_ACCOUNTS, False)
+        )
+        self.payment_method = entry.options.get(
+            CONF_PAYMENT_METHOD, entry.data.get(CONF_PAYMENT_METHOD, PAYMENT_METHOD_LOWEST_FEES)
+        )
 
         # Failure tracking for HA Repairs
         self.consecutive_failures = 0
@@ -144,6 +158,93 @@ class KeyforSteamDataUpdateCoordinator(DataUpdateCoordinator):
 
         return result
 
+
+    def _extract_game_page_trans(self, html):
+        """Extract gamePageTrans JSON from the page source."""
+        try:
+            match = re.search(r"var gamePageTrans\s*=\s*(\{.*?\});", html, re.DOTALL)
+            if match:
+                return json.loads(match.group(1))
+        except Exception as e:
+            _LOGGER.error("Error parsing gamePageTrans: %s", e)
+        return None
+
+    def _parse_game_page_trans(self, game_data, url):
+        """Parse offers from gamePageTrans JS object."""
+        prices = game_data.get("prices", [])
+
+        # Filter and map based on settings
+        filtered_prices = []
+        for p in prices:
+            is_account = p.get("account", False)
+            if not self.allow_accounts and is_account:
+                continue
+
+            # Select price based on payment method
+            price_val = p.get("price", 0)
+            if self.payment_method == PAYMENT_METHOD_CARD:
+                price_val = p.get("priceCard") or p.get("price", 0)
+            elif self.payment_method == PAYMENT_METHOD_PAYPAL:
+                price_val = p.get("pricePaypal") or p.get("price", 0)
+            elif self.payment_method == PAYMENT_METHOD_LOWEST_FEES:
+                # Find the absolute minimum across fee-inclusive fields.
+                # Base 'price' often excludes mandatory fees, so we prioritize card/paypal.
+                price_fields = []
+                if p.get("priceCard"):
+                    price_fields.append(p.get("priceCard"))
+                if p.get("pricePaypal"):
+                    price_fields.append(p.get("pricePaypal"))
+
+                if price_fields:
+                    price_val = min(price_fields)
+                else:
+                    price_val = p.get("price", 0)
+
+            # Create a copy with the selected price as 'effective_price'
+            entry = dict(p)
+            entry["effective_price"] = price_val
+            filtered_prices.append(entry)
+
+        if not filtered_prices:
+            return None
+
+        # Find lowest and highest based on effective price
+        low_price = min(p.get("effective_price", float('inf')) for p in filtered_prices)
+        high_price = max(p.get("effective_price", 0) for p in filtered_prices)
+
+        result = {
+            "product_id": self.product_id,
+            "name": game_data.get("name") or self.product_name,
+            "image": None, # gamePageTrans doesn't have a clean image
+            "product_url": url,
+            "low_price": low_price,
+            "high_price": high_price,
+            "currency": self.currency.upper(),
+            "offer_count": len(filtered_prices),
+            "offers": [],
+            "rating": None,
+            "last_updated": datetime.now().isoformat(),
+        }
+
+        # Handle rating if available in merchants
+        merchants = game_data.get("merchants", {})
+        if merchants:
+            pass
+
+        for p in filtered_prices:
+            merchant_id = str(p.get("merchant"))
+            merchant_info = merchants.get(merchant_id, {})
+            result["offers"].append({
+                "price": float(p.get("effective_price", 0)),
+                "currency": self.currency.upper(),
+                "seller": p.get("merchantName") or merchant_info.get("name"),
+                "availability": "InStock" if p.get("dispo") == 1 else "Unknown",
+                "is_account": p.get("account", False),
+            })
+
+        result["offers"].sort(key=lambda x: x.get("price", float('inf')))
+        return result
+
     async def _handle_api_repair(self, failed: bool):
         """Handle calculation and creation/resolution of API failure repair."""
         from homeassistant.helpers import issue_registry as ir
@@ -233,13 +334,32 @@ class KeyforSteamDataUpdateCoordinator(DataUpdateCoordinator):
                         response.raise_for_status()
                         html = await response.text()
 
+                        # 1. Always try to get metadata from JSON-LD
                         product_data = self._extract_json_ld(html)
-                        if not product_data:
+                        offers = None
+                        if product_data:
+                            offers = self._parse_offers(product_data, url)
+
+                        # 2. Try to get better price data from gamePageTrans
+                        game_data = self._extract_game_page_trans(html)
+                        if game_data:
+                            js_offers = self._parse_game_page_trans(game_data, url)
+                            if js_offers:
+                                if offers:
+                                    # Merge metadata from LD with prices from JS
+                                    offers.update({
+                                        "low_price": js_offers["low_price"],
+                                        "high_price": js_offers["high_price"],
+                                        "offer_count": js_offers["offer_count"],
+                                        "offers": js_offers["offers"],
+                                    })
+                                else:
+                                    offers = js_offers
+
+                        if not offers:
                             self.consecutive_failures += 1
                             await self._handle_api_repair(True)
-                            raise UpdateFailed("No Product data found on page")
-
-                        offers = self._parse_offers(product_data, url)
+                            raise UpdateFailed("Could not find any product data on page")
 
                         # Success - reset failure tracking
                         self.consecutive_failures = 0
@@ -384,6 +504,7 @@ class KeyforSteamRatingSensor(KeyforSteamBaseEntity):
     _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_icon = "mdi:star"
     _attr_translation_key = "rating"
+    _attr_entity_registry_enabled_default = False
 
     def __init__(self, coordinator: KeyforSteamDataUpdateCoordinator, entry: ConfigEntry):
         """Initialize the sensor."""
@@ -417,6 +538,7 @@ class KeyforSteamOfferCountSensor(KeyforSteamBaseEntity):
     _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_icon = "mdi:store"
     _attr_translation_key = "offer_count"
+    _attr_entity_registry_enabled_default = False
 
     def __init__(self, coordinator: KeyforSteamDataUpdateCoordinator, entry: ConfigEntry):
         """Initialize the sensor."""

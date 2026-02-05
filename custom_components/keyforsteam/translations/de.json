@@ -4,26 +4,38 @@
     "step": {
       "user": {
         "title": "Nach einem Spiel suchen",
-        "description": "Suchen Sie nach einem Spiel, um Preise zu verfolgen. Gefunden: {games_count} Spiele im Datenquellen-Katalog.",
+        "description": "Suche nach einem Spiel, um Preise zu verfolgen. Gefunden: {games_count} Spiele im Datenquellen-Katalog.",
         "data": {
           "game_query": "Spielname"
         },
         "data_description": {
-          "game_query": "Geben Sie den Namen des Spiels ein, das Sie verfolgen möchten (z. B. 'FIFA' oder 'Call of Duty')"
+          "game_query": "Gib den Namen des Spiels ein, das du verfolgen möchtest (z. B. 'FIFA' oder 'Call of Duty')"
         }
       },
       "select": {
         "title": "Spiel und Währung auswählen",
-        "description": "Wählen Sie das Spiel aus den Suchergebnissen aus und wählen Sie Ihre bevorzugte Währung.",
+        "description": "Wähle das Spiel aus den Suchergebnissen aus und wähle deine bevorzugte Währung.",
         "data": {
           "game_selection": "Spiel",
-          "currency": "Währung"
+          "currency": "Währung",
+          "allow_accounts": "Accounts/Logins einbeziehen (oft günstiger, kein Key).",
+          "payment_method": "Zahlungsmethode (Preisvergleich)"
+        }
+      }
+    },
+    "selector": {
+      "payment_method": {
+        "options": {
+          "base": "Basispreis (ohne Gebühren)",
+          "card": "Kreditkartenpreis",
+          "paypal": "PayPal-Preis",
+          "lowest_fees": "Geringste Gebühren (Bester Preis)"
         }
       }
     },
     "error": {
-      "no_games_found": "Keine Spiele gefunden, die Ihrer Suche entsprechen. Bitte versuchen Sie es mit einem anderen Suchbegriff.",
-      "invalid_selection": "Ungültige Spielauswahl. Bitte versuchen Sie es erneut.",
+      "no_games_found": "Keine Spiele gefunden, die deiner Suche entsprechen. Bitte versuche es mit einem anderen Suchbegriff.",
+      "invalid_selection": "Ungültige Spielauswahl. Bitte versuche es erneut.",
       "required": "Dieses Feld ist erforderlich.",
       "cannot_connect": "Verbindung zum Preisverfolgungsdienst nicht möglich."
     },
@@ -35,13 +47,15 @@
     "step": {
       "init": {
         "title": "KeyforSteam Optionen",
-        "description": "Konfigurieren Sie Preisalarme und andere Einstellungen.",
+        "description": "Konfiguriere Preisalarme und andere Einstellungen.",
         "data": {
           "price_alert_threshold": "Preisalarm-Schwellenwert",
-          "currency": "Währung"
+          "currency": "Währung",
+          "allow_accounts": "Accounts/Logins einbeziehen",
+          "payment_method": "Zahlungsmethode"
         },
         "data_description": {
-          "price_alert_threshold": "Lassen Sie sich benachrichtigen, wenn der Preis unter diesen Wert fällt (0 = deaktiviert)"
+          "price_alert_threshold": "Lass dich benachrichtigen, wenn der Preis unter diesen Wert fällt (0 = deaktiviert)"
         }
       }
     }
@@ -75,11 +89,11 @@
   "issues": {
     "api_failure": {
       "title": "KeyforSteam API-Verbindung fehlgeschlagen",
-      "description": "Die Integration konnte seit über 24 Stunden keine Preisdaten abrufen. Dies kann darauf hindeuten, dass sich die API geändert hat.\n\nBitte suchen Sie nach Updates oder melden Sie dieses Problem: {issue_url}"
+      "description": "Die Integration konnte seit über 24 Stunden keine Preisdaten abrufen. Dies kann darauf hindeuten, dass sich die API geändert hat.\n\nBitte suche nach Updates oder melde dieses Problem: {issue_url}"
     },
     "product_not_found": {
       "title": "KeyforSteam Produkt nicht gefunden",
-      "description": "Das Produkt {product_name} wurde auf KeyforSteam nicht gefunden (404 Fehler). Dies kann daran liegen, dass das Spiel entfernt wurde oder die URL sich geändert hat.\n\nBitte konfigurieren Sie die Integration neu oder melden Sie dieses Problem, falls es weiterhin besteht: {issue_url}"
+      "description": "Das Produkt {product_name} wurde auf KeyforSteam nicht gefunden (404 Fehler). Dies kann daran liegen, dass das Spiel entfernt wurde oder die URL sich geändert hat.\n\nBitte konfiguriere die Integration neu oder melde dieses Problem, falls es weiterhin besteht: {issue_url}"
     }
   }
 }

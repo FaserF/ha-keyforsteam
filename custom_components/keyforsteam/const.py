@@ -26,6 +26,14 @@ CONF_PRODUCT_NAME = "product_name"
 CONF_PRODUCT_SLUG = "product_slug"
 CONF_CURRENCY = "currency"
 CONF_PRICE_ALERT_THRESHOLD = "price_alert_threshold"
+CONF_ALLOW_ACCOUNTS = "allow_accounts"
+CONF_PAYMENT_METHOD = "payment_method"
+
+# Payment Methods
+PAYMENT_METHOD_BASE = "base"
+PAYMENT_METHOD_CARD = "card"
+PAYMENT_METHOD_PAYPAL = "paypal"
+PAYMENT_METHOD_LOWEST_FEES = "lowest_fees"
 
 # Defaults
 DEFAULT_PRICE_ALERT_THRESHOLD = 0  # 0 = disabled

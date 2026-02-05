@@ -17,7 +17,19 @@
         "description": "Choose the game from the search results and select your preferred currency.",
         "data": {
           "game_selection": "Game",
-          "currency": "Currency"
+          "currency": "Currency",
+          "allow_accounts": "Include Accounts/Logins (often cheaper, not a key)",
+          "payment_method": "Payment Method (price comparison)"
+        }
+      }
+    },
+    "selector": {
+      "payment_method": {
+        "options": {
+          "base": "Base Price (without fees)",
+          "card": "Credit Card price",
+          "paypal": "PayPal price",
+          "lowest_fees": "Lowest Price (including all fees)"
         }
       }
     },
@@ -38,7 +50,9 @@
         "description": "Configure price alerts and other settings.",
         "data": {
           "price_alert_threshold": "Price Alert Threshold",
-          "currency": "Currency"
+          "currency": "Currency",
+          "allow_accounts": "Include Accounts/Logins",
+          "payment_method": "Payment Method"
         },
         "data_description": {
           "price_alert_threshold": "Get alerted when price drops below this value (0 = disabled)"
