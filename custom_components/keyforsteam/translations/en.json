@@ -79,7 +79,7 @@
     },
     "product_not_found": {
       "title": "KeyforSteam Product Not Found",
-      "description": "The product '{product_name}' was not found on KeyforSteam (404 Error). This might be because the game was removed or the URL has changed.\n\nPlease re-configure the integration or report this issue if it persists: {issue_url}"
+      "description": "The product {product_name} was not found on KeyforSteam (404 Error). This might be because the game was removed or the URL has changed.\n\nPlease re-configure the integration or report this issue if it persists: {issue_url}"
     }
   }
 }
