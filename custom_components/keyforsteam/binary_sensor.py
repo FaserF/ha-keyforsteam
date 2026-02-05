@@ -8,8 +8,6 @@ from homeassistant.helpers.entity import DeviceInfo
 
 from .const import (
     DOMAIN,
-    CONF_PRODUCT_ID,
-    CONF_PRODUCT_NAME,
     CONF_PRICE_ALERT_THRESHOLD,
     DEFAULT_PRICE_ALERT_THRESHOLD,
 )

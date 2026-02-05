@@ -19,7 +19,6 @@ from homeassistant.helpers.selector import (
 from .const import (
     DOMAIN,
     GAMES_CATALOG_URL,
-    SUPPORTED_CURRENCIES,
     CONF_PRODUCT_ID,
     CONF_PRODUCT_NAME,
     CONF_PRODUCT_SLUG,
