@@ -4,7 +4,7 @@
     "step": {
       "user": {
         "title": "Search for a Game",
-        "description": "Search for a game to track prices. We have {games_count} games in our catalog.",
+        "description": "Search for a game to track prices. Found {games_count} games in our data source catalog.",
         "data": {
           "game_query": "Game Name"
         },

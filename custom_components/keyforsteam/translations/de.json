@@ -4,7 +4,7 @@
     "step": {
       "user": {
         "title": "Nach einem Spiel suchen",
-        "description": "Suchen Sie nach einem Spiel, um Preise zu verfolgen. Wir haben {games_count} Spiele in unserem Katalog.",
+        "description": "Suchen Sie nach einem Spiel, um Preise zu verfolgen. Gefunden: {games_count} Spiele im Datenquellen-Katalog.",
         "data": {
           "game_query": "Spielname"
         },

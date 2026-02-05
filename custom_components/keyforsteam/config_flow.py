@@ -62,8 +62,8 @@ class KeyforSteamConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         return []
 
-    def _search_games(self, query: str, limit: int = 20) -> list:
-        """Search games by name."""
+    def _search_games(self, query: str, limit: int = 100) -> list:
+        """Search games by name with prioritization."""
         if not self._games_cache or not query:
             return []
 
@@ -71,32 +71,39 @@ class KeyforSteamConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if len(query_lower) < 2:
             return []
 
-        results = []
-        # First: exact match
+        # Scoring:
+        # - Exact match: 1000
+        # - Starts with: 500
+        # - Contains: 100
+        # - Penalty for DLC/Account/Pack: -300
+
+        scored_results = []
         for game in self._games_cache:
             name = game.get("name", "")
-            if name.lower() == query_lower:
-                results.append(game)
-                break
+            name_lower = name.lower()
+            score = 0
 
-        # Then: starts with query
-        for game in self._games_cache:
-            name = game.get("name", "")
-            if name.lower().startswith(query_lower) and game not in results:
-                results.append(game)
-                if len(results) >= limit:
-                    break
+            if name_lower == query_lower:
+                score = 1000
+            elif name_lower.startswith(query_lower):
+                score = 500
+            elif query_lower in name_lower:
+                score = 100
 
-        # Then: contains query
-        if len(results) < limit:
-            for game in self._games_cache:
-                name = game.get("name", "")
-                if query_lower in name.lower() and game not in results:
-                    results.append(game)
-                    if len(results) >= limit:
-                        break
+            if score > 0:
+                # Apply penalties to keep base games at top
+                if any(word in name_lower for word in ["account", "dlc", "pack", "map", "expansion"]):
+                    score -= 300
 
-        return results[:limit]
+                # Bonus for shorter names (more likely to be base game)
+                score += (200 - min(len(name), 150)) / 10
+
+                scored_results.append((score, game))
+
+        # Sort by score descending
+        scored_results.sort(key=lambda x: x[0], reverse=True)
+
+        return [item[1] for item in scored_results[:limit]]
 
     def _create_slug(self, game_name: str) -> str:
         """Create URL slug from game name."""
@@ -217,26 +224,28 @@ class KeyforSteamConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 class KeyforSteamOptionsFlow(config_entries.OptionsFlow):
     """Handle options flow for KeyforSteam."""
 
-    def __init__(self, config_entry):
-        """Initialize options flow."""
-        self.config_entry = config_entry
-
     async def async_step_init(self, user_input=None):
         """Handle options flow."""
         if user_input is not None:
             return self.async_create_entry(title="", data=user_input)
 
-        current_threshold = self.config_entry.options.get(
+        # Get current values from options or data
+        options = self.config_entry.options
+        data = self.config_entry.data
+
+        current_threshold = options.get(
             CONF_PRICE_ALERT_THRESHOLD, DEFAULT_PRICE_ALERT_THRESHOLD
         )
-        current_currency = self.config_entry.data.get(CONF_CURRENCY, DEFAULT_CURRENCY)
+        current_currency = options.get(
+            CONF_CURRENCY, data.get(CONF_CURRENCY, DEFAULT_CURRENCY)
+        )
 
         return self.async_show_form(
             step_id="init",
             data_schema=vol.Schema({
                 vol.Optional(
                     CONF_PRICE_ALERT_THRESHOLD,
-                    default=current_threshold
+                    default=float(current_threshold)
                 ): vol.Coerce(float),
                 vol.Optional(
                     CONF_CURRENCY,
