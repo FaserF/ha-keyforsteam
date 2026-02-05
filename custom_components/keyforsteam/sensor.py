@@ -316,7 +316,7 @@ class KeyforSteamPriceSensor(KeyforSteamBaseEntity):
     """Representation of a KeyforSteam price sensor."""
 
     _attr_device_class = SensorDeviceClass.MONETARY
-    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_state_class = SensorStateClass.TOTAL
     _attr_icon = "mdi:gamepad-variant"
     _attr_translation_key = "lowest_price"
 
