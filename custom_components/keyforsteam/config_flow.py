@@ -223,6 +223,10 @@ class KeyforSteamConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 class KeyforSteamOptionsFlow(config_entries.OptionsFlow):
     """Handle options flow for KeyforSteam."""
 
+    def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
+        """Initialize options flow."""
+        self.config_entry = config_entry
+
     async def async_step_init(self, user_input=None):
         """Handle options flow."""
         if user_input is not None:
