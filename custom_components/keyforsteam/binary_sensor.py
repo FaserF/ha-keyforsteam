@@ -1,6 +1,10 @@
 """Binary sensor for KeyforSteam price alerts."""
+
 import logging
-from homeassistant.components.binary_sensor import BinarySensorEntity, BinarySensorDeviceClass
+from homeassistant.components.binary_sensor import (
+    BinarySensorEntity,
+    BinarySensorDeviceClass,
+)
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.core import HomeAssistant
@@ -23,7 +27,9 @@ async def async_setup_entry(
 
     entities = [KeyforSteamStockBinarySensor(coordinator, entry)]
 
-    threshold = entry.options.get(CONF_PRICE_ALERT_THRESHOLD, DEFAULT_PRICE_ALERT_THRESHOLD)
+    threshold = entry.options.get(
+        CONF_PRICE_ALERT_THRESHOLD, DEFAULT_PRICE_ALERT_THRESHOLD
+    )
     if threshold and threshold > 0:
         entities.append(KeyforSteamPriceAlertSensor(coordinator, entry, threshold))
 
@@ -49,7 +55,8 @@ class KeyforSteamBaseBinarySensor(BinarySensorEntity):
         """Return device information for grouping sensors."""
         return DeviceInfo(
             identifiers={(DOMAIN, self._coordinator.product_id)},
-            name=self._coordinator.product_name or f"Game {self._coordinator.product_id}",
+            name=self._coordinator.product_name
+            or f"Game {self._coordinator.product_id}",
             manufacturer="AllKeyShop",
             model="Game Price Tracker",
             entry_type="service",

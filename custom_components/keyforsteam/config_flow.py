@@ -1,4 +1,6 @@
+
 """Config flow for KeyforSteam integration."""
+
 import logging
 import re
 import aiohttp
@@ -39,7 +41,7 @@ from .const import (
 _LOGGER = logging.getLogger(__name__)
 
 
-class KeyforSteamConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
+class KeyforSteamConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: ignore
     """Handle a config flow for KeyforSteam."""
 
     VERSION = 1
@@ -63,7 +65,10 @@ class KeyforSteamConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                             data = await response.json()
                             if data.get("status") == "success":
                                 self._games_cache = data.get("games", [])
-                                _LOGGER.debug("Fetched %d games from catalog", len(self._games_cache))
+                                _LOGGER.debug(
+                                    "Fetched %d games from catalog",
+                                    len(self._games_cache),
+                                )
                                 return self._games_cache
         except Exception as e:
             _LOGGER.error("Error fetching games catalog: %s", e)
@@ -89,7 +94,7 @@ class KeyforSteamConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         for game in self._games_cache:
             name = game.get("name", "")
             name_lower = name.lower()
-            score = 0
+            score: float = 0
 
             if name_lower == query_lower:
                 score = 1000
@@ -100,7 +105,10 @@ class KeyforSteamConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
             if score > 0:
                 # Apply penalties to keep base games at top
-                if any(word in name_lower for word in ["account", "dlc", "pack", "map", "expansion"]):
+                if any(
+                    word in name_lower
+                    for word in ["account", "dlc", "pack", "map", "expansion"]
+                ):
                     score -= 300
 
                 # Bonus for shorter names (more likely to be base game)
@@ -116,8 +124,8 @@ class KeyforSteamConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     def _create_slug(self, game_name: str) -> str:
         """Create URL slug from game name."""
         slug = game_name.lower()
-        slug = re.sub(r'[^a-z0-9]+', '-', slug)
-        slug = slug.strip('-')
+        slug = re.sub(r"[^a-z0-9]+", "-", slug)
+        slug = slug.strip("-")
         return slug
 
     async def async_step_user(self, user_input=None):
@@ -146,15 +154,17 @@ class KeyforSteamConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         return self.async_show_form(
             step_id="user",
-            data_schema=vol.Schema({
-                vol.Required("game_query"): TextSelector(
-                    TextSelectorConfig(type=TextSelectorType.TEXT)
-                ),
-            }),
+            data_schema=vol.Schema(
+                {
+                    vol.Required("game_query"): TextSelector(
+                        TextSelectorConfig(type=TextSelectorType.TEXT)
+                    ),
+                }
+            ),
             errors=errors,
             description_placeholders={
                 "games_count": str(len(self._games_cache)) if self._games_cache else "0"
-            }
+            },
         )
 
     async def async_step_select(self, user_input=None):
@@ -165,7 +175,9 @@ class KeyforSteamConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             selected_id = user_input.get("game_selection")
             currency = user_input.get(CONF_CURRENCY, DEFAULT_CURRENCY)
             allow_accounts = user_input.get(CONF_ALLOW_ACCOUNTS, False)
-            payment_method = user_input.get(CONF_PAYMENT_METHOD, PAYMENT_METHOD_LOWEST_FEES)
+            payment_method = user_input.get(
+                CONF_PAYMENT_METHOD, PAYMENT_METHOD_LOWEST_FEES
+            )
 
             # Find selected game
             selected_game = None
@@ -192,7 +204,7 @@ class KeyforSteamConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         CONF_CURRENCY: currency,
                         CONF_ALLOW_ACCOUNTS: allow_accounts,
                         CONF_PAYMENT_METHOD: payment_method,
-                    }
+                    },
                 )
             else:
                 errors["game_selection"] = "invalid_selection"
@@ -205,39 +217,48 @@ class KeyforSteamConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         return self.async_show_form(
             step_id="select",
-            data_schema=vol.Schema({
-                vol.Required("game_selection"): SelectSelector(
-                    SelectSelectorConfig(
-                        options=options,
-                        mode=SelectSelectorMode.DROPDOWN,
-                    )
-                ),
-                vol.Required(CONF_CURRENCY, default=DEFAULT_CURRENCY): SelectSelector(
-                    SelectSelectorConfig(
-                        options=[
-                            {"value": "eur", "label": "EUR (€)"},
-                            {"value": "usd", "label": "USD ($)"},
-                            {"value": "gbp", "label": "GBP (£)"},
-                        ],
-                        mode=SelectSelectorMode.DROPDOWN,
-                    )
-                ),
-                vol.Optional(CONF_ALLOW_ACCOUNTS, default=False): BooleanSelector(
-                    BooleanSelectorConfig()
-                ),
-                vol.Required(CONF_PAYMENT_METHOD, default=PAYMENT_METHOD_LOWEST_FEES): SelectSelector(
-                    SelectSelectorConfig(
-                        options=[
-                            {"value": PAYMENT_METHOD_BASE, "label": "base"},
-                            {"value": PAYMENT_METHOD_CARD, "label": "card"},
-                            {"value": PAYMENT_METHOD_PAYPAL, "label": "paypal"},
-                            {"value": PAYMENT_METHOD_LOWEST_FEES, "label": "lowest_fees"},
-                        ],
-                        mode=SelectSelectorMode.DROPDOWN,
-                        translation_key="payment_method",
-                    )
-                ),
-            }),
+            data_schema=vol.Schema(
+                {
+                    vol.Required("game_selection"): SelectSelector(
+                        SelectSelectorConfig(
+                            options=options,
+                            mode=SelectSelectorMode.DROPDOWN,
+                        )
+                    ),
+                    vol.Required(
+                        CONF_CURRENCY, default=DEFAULT_CURRENCY
+                    ): SelectSelector(
+                        SelectSelectorConfig(
+                            options=[
+                                {"value": "eur", "label": "EUR (€)"},
+                                {"value": "usd", "label": "USD ($)"},
+                                {"value": "gbp", "label": "GBP (£)"},
+                            ],
+                            mode=SelectSelectorMode.DROPDOWN,
+                        )
+                    ),
+                    vol.Optional(CONF_ALLOW_ACCOUNTS, default=False): BooleanSelector(
+                        BooleanSelectorConfig()
+                    ),
+                    vol.Required(
+                        CONF_PAYMENT_METHOD, default=PAYMENT_METHOD_LOWEST_FEES
+                    ): SelectSelector(
+                        SelectSelectorConfig(
+                            options=[
+                                {"value": PAYMENT_METHOD_BASE, "label": "base"},
+                                {"value": PAYMENT_METHOD_CARD, "label": "card"},
+                                {"value": PAYMENT_METHOD_PAYPAL, "label": "paypal"},
+                                {
+                                    "value": PAYMENT_METHOD_LOWEST_FEES,
+                                    "label": "lowest_fees",
+                                },
+                            ],
+                            mode=SelectSelectorMode.DROPDOWN,
+                            translation_key="payment_method",
+                        )
+                    ),
+                }
+            ),
             errors=errors,
         )
 
@@ -266,7 +287,8 @@ class KeyforSteamOptionsFlow(config_entries.OptionsFlow):
         data = self.config_entry.data
 
         current_threshold = options.get(
-            CONF_PRICE_ALERT_THRESHOLD, data.get(CONF_PRICE_ALERT_THRESHOLD, DEFAULT_PRICE_ALERT_THRESHOLD)
+            CONF_PRICE_ALERT_THRESHOLD,
+            data.get(CONF_PRICE_ALERT_THRESHOLD, DEFAULT_PRICE_ALERT_THRESHOLD),
         )
         current_currency = options.get(
             CONF_CURRENCY, data.get(CONF_CURRENCY, DEFAULT_CURRENCY)
@@ -275,47 +297,49 @@ class KeyforSteamOptionsFlow(config_entries.OptionsFlow):
             CONF_ALLOW_ACCOUNTS, data.get(CONF_ALLOW_ACCOUNTS, False)
         )
         current_payment_method = options.get(
-            CONF_PAYMENT_METHOD, data.get(CONF_PAYMENT_METHOD, PAYMENT_METHOD_LOWEST_FEES)
+            CONF_PAYMENT_METHOD,
+            data.get(CONF_PAYMENT_METHOD, PAYMENT_METHOD_LOWEST_FEES),
         )
 
         return self.async_show_form(
             step_id="init",
-            data_schema=vol.Schema({
-                vol.Optional(
-                    CONF_PRICE_ALERT_THRESHOLD,
-                    default=float(current_threshold)
-                ): vol.Coerce(float),
-                vol.Optional(
-                    CONF_CURRENCY,
-                    default=current_currency
-                ): SelectSelector(
-                    SelectSelectorConfig(
-                        options=[
-                            {"value": "eur", "label": "EUR (€)"},
-                            {"value": "usd", "label": "USD ($)"},
-                            {"value": "gbp", "label": "GBP (£)"},
-                        ],
-                        mode=SelectSelectorMode.DROPDOWN,
-                    )
-                ),
-                vol.Optional(
-                    CONF_ALLOW_ACCOUNTS,
-                    default=current_allow_accounts
-                ): BooleanSelector(BooleanSelectorConfig()),
-                vol.Optional(
-                    CONF_PAYMENT_METHOD,
-                    default=current_payment_method
-                ): SelectSelector(
-                    SelectSelectorConfig(
-                        options=[
-                            {"value": PAYMENT_METHOD_BASE, "label": "base"},
-                            {"value": PAYMENT_METHOD_CARD, "label": "card"},
-                            {"value": PAYMENT_METHOD_PAYPAL, "label": "paypal"},
-                            {"value": PAYMENT_METHOD_LOWEST_FEES, "label": "lowest_fees"},
-                        ],
-                        mode=SelectSelectorMode.DROPDOWN,
-                        translation_key="payment_method",
-                    )
-                ),
-            }),
+            data_schema=vol.Schema(
+                {
+                    vol.Optional(
+                        CONF_PRICE_ALERT_THRESHOLD, default=float(current_threshold)
+                    ): vol.Coerce(float),
+                    vol.Optional(
+                        CONF_CURRENCY, default=current_currency
+                    ): SelectSelector(
+                        SelectSelectorConfig(
+                            options=[
+                                {"value": "eur", "label": "EUR (€)"},
+                                {"value": "usd", "label": "USD ($)"},
+                                {"value": "gbp", "label": "GBP (£)"},
+                            ],
+                            mode=SelectSelectorMode.DROPDOWN,
+                        )
+                    ),
+                    vol.Optional(
+                        CONF_ALLOW_ACCOUNTS, default=current_allow_accounts
+                    ): BooleanSelector(BooleanSelectorConfig()),
+                    vol.Optional(
+                        CONF_PAYMENT_METHOD, default=current_payment_method
+                    ): SelectSelector(
+                        SelectSelectorConfig(
+                            options=[
+                                {"value": PAYMENT_METHOD_BASE, "label": "base"},
+                                {"value": PAYMENT_METHOD_CARD, "label": "card"},
+                                {"value": PAYMENT_METHOD_PAYPAL, "label": "paypal"},
+                                {
+                                    "value": PAYMENT_METHOD_LOWEST_FEES,
+                                    "label": "lowest_fees",
+                                },
+                            ],
+                            mode=SelectSelectorMode.DROPDOWN,
+                            translation_key="payment_method",
+                        )
+                    ),
+                }
+            ),
         )

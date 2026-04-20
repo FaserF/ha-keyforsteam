@@ -1,4 +1,5 @@
 """Diagnostics for KeyforSteam integration."""
+
 from typing import Any
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant

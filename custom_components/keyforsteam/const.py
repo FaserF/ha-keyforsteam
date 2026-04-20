@@ -4,9 +4,13 @@ DOMAIN = "keyforsteam"
 DEFAULT_CURRENCY = "eur"
 
 # API Endpoints
-GAMES_CATALOG_URL = "https://www.allkeyshop.com/api/v2/vaks.php?action=gameNames&currency=eur"
+GAMES_CATALOG_URL = (
+    "https://www.allkeyshop.com/api/v2/vaks.php?action=gameNames&currency=eur"
+)
 KEYFORSTEAM_PRODUCT_URL = "https://www.keyforsteam.de/{slug}-key-kaufen-preisvergleich/"
-ALLKEYSHOP_PRODUCT_URL = "https://www.allkeyshop.com/blog/buy-{slug}-cd-key-compare-prices/"
+ALLKEYSHOP_PRODUCT_URL = (
+    "https://www.allkeyshop.com/blog/buy-{slug}-cd-key-compare-prices/"
+)
 
 # Update Intervals
 UPDATE_INTERVAL_HOURS = 1

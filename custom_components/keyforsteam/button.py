@@ -1,4 +1,5 @@
 """Button for KeyforSteam manual updates."""
+
 import logging
 from homeassistant.components.button import ButtonEntity
 from homeassistant.config_entries import ConfigEntry
@@ -34,7 +35,9 @@ class KeyforSteamUpdateButton(ButtonEntity):
 
     async def async_press(self) -> None:
         """Handle the button press."""
-        _LOGGER.debug("Manual update triggered via button for %s", self._coordinator.product_id)
+        _LOGGER.debug(
+            "Manual update triggered via button for %s", self._coordinator.product_id
+        )
         await self._coordinator.async_request_refresh()
 
     @property
@@ -42,7 +45,8 @@ class KeyforSteamUpdateButton(ButtonEntity):
         """Return device information for grouping sensors."""
         return DeviceInfo(
             identifiers={(DOMAIN, self._coordinator.product_id)},
-            name=self._coordinator.product_name or f"Game {self._coordinator.product_id}",
+            name=self._coordinator.product_name
+            or f"Game {self._coordinator.product_id}",
             manufacturer="AllKeyShop",
             model="Game Price Tracker",
             entry_type="service",

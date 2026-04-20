@@ -1,4 +1,5 @@
 """Init file for the KeyforSteam integration."""
+
 import logging
 from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry
@@ -28,13 +29,17 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     platforms_to_load = ["sensor"]
 
     # Only load binary_sensor if price alert threshold is configured
-    threshold = entry.options.get(CONF_PRICE_ALERT_THRESHOLD, DEFAULT_PRICE_ALERT_THRESHOLD)
+    threshold = entry.options.get(
+        CONF_PRICE_ALERT_THRESHOLD, DEFAULT_PRICE_ALERT_THRESHOLD
+    )
     if threshold and threshold > 0:
         platforms_to_load.append("binary_sensor")
 
     try:
         await hass.config_entries.async_forward_entry_setups(entry, platforms_to_load)
-        _LOGGER.debug("Successfully set up platforms for KeyforSteam entry: %s", platforms_to_load)
+        _LOGGER.debug(
+            "Successfully set up platforms for KeyforSteam entry: %s", platforms_to_load
+        )
     except Exception as e:
         _LOGGER.error("Error setting up KeyforSteam entry: %s", e)
         return False
@@ -58,16 +63,22 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     # Determine which platforms were loaded
     platforms_to_unload = ["sensor"]
-    threshold = entry.options.get(CONF_PRICE_ALERT_THRESHOLD, DEFAULT_PRICE_ALERT_THRESHOLD)
+    threshold = entry.options.get(
+        CONF_PRICE_ALERT_THRESHOLD, DEFAULT_PRICE_ALERT_THRESHOLD
+    )
     if threshold and threshold > 0:
         platforms_to_unload.append("binary_sensor")
 
-    unloaded = await hass.config_entries.async_unload_platforms(entry, platforms_to_unload)
+    unloaded = await hass.config_entries.async_unload_platforms(
+        entry, platforms_to_unload
+    )
 
     if unloaded:
         hass.data[DOMAIN].pop(entry.entry_id, None)
         _LOGGER.debug("KeyforSteam entry unloaded successfully.")
     else:
-        _LOGGER.warning("Failed to unload KeyforSteam entry with entry_id: %s", entry.entry_id)
+        _LOGGER.warning(
+            "Failed to unload KeyforSteam entry with entry_id: %s", entry.entry_id
+        )
 
     return unloaded

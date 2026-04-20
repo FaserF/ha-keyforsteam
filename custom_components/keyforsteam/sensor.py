@@ -1,9 +1,14 @@
 """KeyForSteam sensor using AllKeyShop JSON-LD structured data."""
+
 import logging
 import re
 import json
 from datetime import datetime, timedelta
-from homeassistant.components.sensor import SensorEntity, SensorDeviceClass, SensorStateClass
+from homeassistant.components.sensor import (
+    SensorEntity,
+    SensorDeviceClass,
+    SensorStateClass,
+)
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -53,12 +58,13 @@ class KeyforSteamDataUpdateCoordinator(DataUpdateCoordinator):
             CONF_ALLOW_ACCOUNTS, entry.data.get(CONF_ALLOW_ACCOUNTS, False)
         )
         self.payment_method = entry.options.get(
-            CONF_PAYMENT_METHOD, entry.data.get(CONF_PAYMENT_METHOD, PAYMENT_METHOD_LOWEST_FEES)
+            CONF_PAYMENT_METHOD,
+            entry.data.get(CONF_PAYMENT_METHOD, PAYMENT_METHOD_LOWEST_FEES),
         )
 
         # Failure tracking for HA Repairs
         self.consecutive_failures = 0
-        self.last_successful_fetch = None
+        self.last_successful_fetch: datetime | None = None
         self.api_repair_created = False
         self.not_found_repair_created = False
 
@@ -66,7 +72,7 @@ class KeyforSteamDataUpdateCoordinator(DataUpdateCoordinator):
             hass,
             _LOGGER,
             name=f"KeyforSteam_{self.product_id}",
-            update_interval=UPDATE_INTERVAL
+            update_interval=UPDATE_INTERVAL,
         )
 
     def _build_product_url(self):
@@ -75,13 +81,13 @@ class KeyforSteamDataUpdateCoordinator(DataUpdateCoordinator):
             slug = self.product_slug
         elif self.product_name:
             slug = self.product_name.lower()
-            slug = re.sub(r'[^a-z0-9]+', '-', slug)
-            slug = slug.strip('-')
+            slug = re.sub(r"[^a-z0-9]+", "-", slug)
+            slug = slug.strip("-")
         else:
             if not str(self.product_id).isdigit():
                 slug = self.product_id.lower()
-                slug = re.sub(r'[^a-z0-9]+', '-', slug)
-                slug = slug.strip('-')
+                slug = re.sub(r"[^a-z0-9]+", "-", slug)
+                slug = slug.strip("-")
             else:
                 _LOGGER.error("Cannot build URL: no slug or name available")
                 return None
@@ -104,7 +110,10 @@ class KeyforSteamDataUpdateCoordinator(DataUpdateCoordinator):
                         return data
                     if "@graph" in data:
                         for item in data["@graph"]:
-                            if isinstance(item, dict) and item.get("@type") == "Product":
+                            if (
+                                isinstance(item, dict)
+                                and item.get("@type") == "Product"
+                            ):
                                 return item
             except json.JSONDecodeError:
                 continue
@@ -146,17 +155,26 @@ class KeyforSteamDataUpdateCoordinator(DataUpdateCoordinator):
             for offer in individual_offers:
                 if isinstance(offer, dict):
                     seller = offer.get("seller", {})
-                    result["offers"].append({
-                        "price": float(offer.get("price", 0)),
-                        "currency": offer.get("priceCurrency", "EUR"),
-                        "seller": seller.get("name") if isinstance(seller, dict) else str(seller),
-                        "availability": "InStock" if "InStock" in str(offer.get("availability", "")) else "Unknown",
-                    })
+                    result["offers"].append(
+                        {
+                            "price": float(offer.get("price", 0)),
+                            "currency": offer.get("priceCurrency", "EUR"),
+                            "seller": (
+                                seller.get("name")
+                                if isinstance(seller, dict)
+                                else str(seller)
+                            ),
+                            "availability": (
+                                "InStock"
+                                if "InStock" in str(offer.get("availability", ""))
+                                else "Unknown"
+                            ),
+                        }
+                    )
 
-        result["offers"].sort(key=lambda x: x.get("price", float('inf')))
+        result["offers"].sort(key=lambda x: x.get("price", float("inf")))
 
         return result
-
 
     def _extract_game_page_trans(self, html):
         """Extract gamePageTrans JSON from the page source."""
@@ -208,13 +226,13 @@ class KeyforSteamDataUpdateCoordinator(DataUpdateCoordinator):
             return None
 
         # Find lowest and highest based on effective price
-        low_price = min(p.get("effective_price", float('inf')) for p in filtered_prices)
+        low_price = min(p.get("effective_price", float("inf")) for p in filtered_prices)
         high_price = max(p.get("effective_price", 0) for p in filtered_prices)
 
         result = {
             "product_id": self.product_id,
             "name": game_data.get("name") or self.product_name,
-            "image": None, # gamePageTrans doesn't have a clean image
+            "image": None,  # gamePageTrans doesn't have a clean image
             "product_url": url,
             "low_price": low_price,
             "high_price": high_price,
@@ -233,20 +251,23 @@ class KeyforSteamDataUpdateCoordinator(DataUpdateCoordinator):
         for p in filtered_prices:
             merchant_id = str(p.get("merchant"))
             merchant_info = merchants.get(merchant_id, {})
-            result["offers"].append({
-                "price": float(p.get("effective_price", 0)),
-                "currency": self.currency.upper(),
-                "seller": p.get("merchantName") or merchant_info.get("name"),
-                "availability": "InStock" if p.get("dispo") == 1 else "Unknown",
-                "is_account": p.get("account", False),
-            })
+            result["offers"].append(
+                {
+                    "price": float(p.get("effective_price", 0)),
+                    "currency": self.currency.upper(),
+                    "seller": p.get("merchantName") or merchant_info.get("name"),
+                    "availability": "InStock" if p.get("dispo") == 1 else "Unknown",
+                    "is_account": p.get("account", False),
+                }
+            )
 
-        result["offers"].sort(key=lambda x: x.get("price", float('inf')))
+        result["offers"].sort(key=lambda x: x.get("price", float("inf")))
         return result
 
     async def _handle_api_repair(self, failed: bool):
         """Handle calculation and creation/resolution of API failure repair."""
         from homeassistant.helpers import issue_registry as ir
+
         issue_id = f"{REPAIR_API_FAILURE}_{self.product_id}"
 
         if not failed:
@@ -259,9 +280,11 @@ class KeyforSteamDataUpdateCoordinator(DataUpdateCoordinator):
             return
 
         if self.last_successful_fetch is None:
-            hours_since_success = REPAIR_THRESHOLD_HOURS + 1
+            hours_since_success: float = float(REPAIR_THRESHOLD_HOURS + 1)
         else:
-            hours_since_success = (datetime.now() - self.last_successful_fetch).total_seconds() / 3600
+            hours_since_success = (
+                datetime.now() - self.last_successful_fetch
+            ).total_seconds() / 3600
 
         if hours_since_success >= REPAIR_THRESHOLD_HOURS:
             ir.async_create_issue(
@@ -279,6 +302,7 @@ class KeyforSteamDataUpdateCoordinator(DataUpdateCoordinator):
     async def _handle_not_found_repair(self, is_404: bool):
         """Handle calculation and creation/resolution of 404 repair."""
         from homeassistant.helpers import issue_registry as ir
+
         issue_id = f"{REPAIR_PRODUCT_NOT_FOUND}_{self.product_id}"
 
         if not is_404:
@@ -300,7 +324,7 @@ class KeyforSteamDataUpdateCoordinator(DataUpdateCoordinator):
             translation_key=REPAIR_PRODUCT_NOT_FOUND,
             translation_placeholders={
                 "product_name": self.product_name or self.product_id,
-                "issue_url": ISSUE_TRACKER_URL
+                "issue_url": ISSUE_TRACKER_URL,
             },
         )
         self.not_found_repair_created = True
@@ -346,19 +370,23 @@ class KeyforSteamDataUpdateCoordinator(DataUpdateCoordinator):
                             if js_offers:
                                 if offers:
                                     # Merge metadata from LD with prices from JS
-                                    offers.update({
-                                        "low_price": js_offers["low_price"],
-                                        "high_price": js_offers["high_price"],
-                                        "offer_count": js_offers["offer_count"],
-                                        "offers": js_offers["offers"],
-                                    })
+                                    offers.update(
+                                        {
+                                            "low_price": js_offers["low_price"],
+                                            "high_price": js_offers["high_price"],
+                                            "offer_count": js_offers["offer_count"],
+                                            "offers": js_offers["offers"],
+                                        }
+                                    )
                                 else:
                                     offers = js_offers
 
                         if not offers:
                             self.consecutive_failures += 1
                             await self._handle_api_repair(True)
-                            raise UpdateFailed("Could not find any product data on page")
+                            raise UpdateFailed(
+                                "Could not find any product data on page"
+                            )
 
                         # Success - reset failure tracking
                         self.consecutive_failures = 0
@@ -381,7 +409,9 @@ class KeyforSteamDataUpdateCoordinator(DataUpdateCoordinator):
                     raise UpdateFailed(f"Error: {e}")
 
 
-async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback):
+async def async_setup_entry(
+    hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
+):
     """Set up the KeyforSteam sensors from a config entry."""
     _LOGGER.debug("Setting up KeyforSteam sensors for entry: %s", entry.entry_id)
 
@@ -402,7 +432,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
 class KeyforSteamBaseEntity(SensorEntity):
     """Base class for KeyforSteam sensors."""
 
-    def __init__(self, coordinator: KeyforSteamDataUpdateCoordinator, entry: ConfigEntry):
+    def __init__(
+        self, coordinator: KeyforSteamDataUpdateCoordinator, entry: ConfigEntry
+    ):
         """Initialize the sensor."""
         self._coordinator = coordinator
         self._entry = entry
@@ -418,7 +450,8 @@ class KeyforSteamBaseEntity(SensorEntity):
         """Return device information for grouping sensors."""
         return DeviceInfo(
             identifiers={(DOMAIN, self._coordinator.product_id)},
-            name=self._coordinator.product_name or f"Game {self._coordinator.product_id}",
+            name=self._coordinator.product_name
+            or f"Game {self._coordinator.product_id}",
             manufacturer="AllKeyShop",
             model="Game Price Tracker",
             entry_type="service",
@@ -439,7 +472,9 @@ class KeyforSteamPriceSensor(KeyforSteamBaseEntity):
     _attr_icon = "mdi:gamepad-variant"
     _attr_translation_key = "lowest_price"
 
-    def __init__(self, coordinator: KeyforSteamDataUpdateCoordinator, entry: ConfigEntry):
+    def __init__(
+        self, coordinator: KeyforSteamDataUpdateCoordinator, entry: ConfigEntry
+    ):
         """Initialize the sensor."""
         super().__init__(coordinator, entry)
         self._attr_unique_id = f"keyforsteam_{coordinator.product_id}_price"
@@ -505,7 +540,9 @@ class KeyforSteamRatingSensor(KeyforSteamBaseEntity):
     _attr_translation_key = "rating"
     _attr_entity_registry_enabled_default = False
 
-    def __init__(self, coordinator: KeyforSteamDataUpdateCoordinator, entry: ConfigEntry):
+    def __init__(
+        self, coordinator: KeyforSteamDataUpdateCoordinator, entry: ConfigEntry
+    ):
         """Initialize the sensor."""
         super().__init__(coordinator, entry)
         self._attr_unique_id = f"keyforsteam_{coordinator.product_id}_rating"
@@ -539,7 +576,9 @@ class KeyforSteamOfferCountSensor(KeyforSteamBaseEntity):
     _attr_translation_key = "offer_count"
     _attr_entity_registry_enabled_default = False
 
-    def __init__(self, coordinator: KeyforSteamDataUpdateCoordinator, entry: ConfigEntry):
+    def __init__(
+        self, coordinator: KeyforSteamDataUpdateCoordinator, entry: ConfigEntry
+    ):
         """Initialize the sensor."""
         super().__init__(coordinator, entry)
         self._attr_unique_id = f"keyforsteam_{coordinator.product_id}_offer_count"
