@@ -2,6 +2,7 @@ import pytest
 from unittest.mock import MagicMock, AsyncMock
 from homeassistant.core import HomeAssistant
 
+
 @pytest.fixture
 def mock_hass():
     hass = MagicMock(spec=HomeAssistant)
@@ -16,6 +17,7 @@ def mock_hass():
     hass.config_entries.async_reload = AsyncMock(return_value=True)
     return hass
 
+
 @pytest.fixture
 def mock_config_entry():
     entry = MagicMock()
@@ -26,7 +28,7 @@ def mock_config_entry():
         "product_slug": "test-game",
         "currency": "eur",
         "allow_accounts": False,
-        "payment_method": "lowest_fees"
+        "payment_method": "lowest_fees",
     }
     entry.options = {}
     entry.async_on_unload = MagicMock()

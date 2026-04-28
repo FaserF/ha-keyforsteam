@@ -88,7 +88,14 @@ This integration supports all localized versions of the AllKeyShop network. It a
 
 ### Image Entity (`image.keyforsteam_<game>_game_image`)
 - **State**: Displays the cover image of the game.
-- **Note**: Standard disabled by default. Can be enabled in the entity registry settings.
+### Release Calendar (`calendar.keyforsteam_<game>_calendar`)
+- **State**: Displays upcoming game release dates.
+- **Note**: Standard disabled by default. Can be enabled in entity settings.
+
+### Budget Limit (`number.keyforsteam_<game>_budget_limit`)
+- **State**: Persistent slider representing your personal budget threshold for purchasing the game.
+
+
 
 ### Price Drop Event (`event.keyforsteam_<game>_price_drop_event`)
 - **Fires**: When the lowest price decreases.

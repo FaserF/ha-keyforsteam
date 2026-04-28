@@ -1,4 +1,3 @@
-
 """Config flow for KeyforSteam integration."""
 
 import logging

@@ -11,7 +11,15 @@ _LOGGER = logging.getLogger(__name__)
 
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
-PLATFORMS = ["sensor", "binary_sensor", "button", "image", "event"]
+PLATFORMS = [
+    "sensor",
+    "binary_sensor",
+    "button",
+    "image",
+    "event",
+    "calendar",
+    "number",
+]
 
 
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
@@ -22,7 +30,6 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     from homeassistant.helpers.aiohttp_client import async_get_clientsession
     from .const import GAMES_CATALOG_URL
     import voluptuous as vol
-    import aiohttp
     import async_timeout
     import re
     import json
@@ -50,16 +57,19 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
         for game in games:
             name = game.get("name", "")
             name_lower = name.lower()
-            score = 0
+            score: float = 0.0
             if name_lower == query_lower:
-                score = 1000
+                score = 1000.0
             elif name_lower.startswith(query_lower):
-                score = 500
+                score = 500.0
             elif query_lower in name_lower:
-                score = 100
+                score = 100.0
 
             if score > 0:
-                if any(word in name_lower for word in ["account", "dlc", "pack", "map", "expansion"]):
+                if any(
+                    word in name_lower
+                    for word in ["account", "dlc", "pack", "map", "expansion"]
+                ):
                     score -= 300
                 score += (200 - min(len(name), 150)) / 10
                 scored_results.append((score, game))
@@ -67,11 +77,11 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
         scored_results.sort(key=lambda x: x[0], reverse=True)
         if not scored_results:
             return {"error": "Game not found"}
-        
+
         best_game = scored_results[0][1]
         slug = best_game.get("name", "").lower()
         slug = re.sub(r"[^a-z0-9]+", "-", slug).strip("-")
-        
+
         url = f"https://www.keyforsteam.de/{slug}-key-kaufen"
 
         headers = {
@@ -81,7 +91,9 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
             async with async_timeout.timeout(15):
                 async with session.get(url, headers=headers) as response:
                     if response.status != 200:
-                        return {"error": f"Failed to fetch game page: status {response.status}"}
+                        return {
+                            "error": f"Failed to fetch game page: status {response.status}"
+                        }
                     html = await response.text()
         except Exception as e:
             return {"error": f"Fetch game page error: {e}"}
@@ -94,26 +106,30 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
             game_data = json.loads(match.group(1))
             prices = game_data.get("prices", [])
             merchants = game_data.get("merchants", {})
-            
+
             offers = []
             for p in prices:
                 price_val = p.get("price", 0)
                 if p.get("priceCard"):
                     price_val = p.get("priceCard")
-                merchant_name = p.get("merchantName") or merchants.get(str(p.get("merchant")), {}).get("name", "Unknown")
-                offers.append({
-                    "seller": merchant_name,
-                    "price": float(price_val),
-                    "currency": "EUR",
-                    "is_account": p.get("account", False)
-                })
-            
+                merchant_name = p.get("merchantName") or merchants.get(
+                    str(p.get("merchant")), {}
+                ).get("name", "Unknown")
+                offers.append(
+                    {
+                        "seller": merchant_name,
+                        "price": float(price_val),
+                        "currency": "EUR",
+                        "is_account": p.get("account", False),
+                    }
+                )
+
             offers.sort(key=lambda x: x["price"])
             return {
                 "game_name": best_game.get("name"),
                 "url": url,
                 "best_price": offers[0]["price"] if offers else None,
-                "offers": offers[:5]
+                "offers": offers[:5],
             }
         except Exception as e:
             return {"error": f"Parsing error: {e}"}
@@ -136,12 +152,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     # Create and initialize the coordinator here to prevent race conditions across platforms
     from .sensor import KeyforSteamDataUpdateCoordinator
+
     coordinator = KeyforSteamDataUpdateCoordinator(hass, entry)
     await coordinator.async_config_entry_first_refresh()
     hass.data[DOMAIN][entry.entry_id] = {"coordinator": coordinator}
 
     # Determine which platforms to load
-    platforms_to_load = ["sensor", "image", "button", "event"]
+    platforms_to_load = ["sensor", "image", "button", "event", "calendar", "number"]
 
     # Only load binary_sensor if price alert threshold is configured
     threshold = entry.options.get(
@@ -177,7 +194,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     _LOGGER.debug("Unloading KeyforSteam entry with entry_id: %s", entry.entry_id)
 
     # Determine which platforms were loaded
-    platforms_to_unload = ["sensor", "image", "button", "event"]
+    platforms_to_unload = ["sensor", "image", "button", "event", "calendar", "number"]
     threshold = entry.options.get(
         CONF_PRICE_ALERT_THRESHOLD, DEFAULT_PRICE_ALERT_THRESHOLD
     )
@@ -197,4 +214,3 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         )
 
     return unloaded
-

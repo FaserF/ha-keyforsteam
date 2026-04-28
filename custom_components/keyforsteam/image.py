@@ -53,8 +53,7 @@ class KeyforSteamGameImage(ImageEntity):
         """Return device information for grouping entities."""
         return DeviceInfo(
             identifiers={(DOMAIN, self.coordinator.product_id)},
-            name=self.coordinator.product_name
-            or f"Game {self.coordinator.product_id}",
+            name=self.coordinator.product_name or f"Game {self.coordinator.product_id}",
             manufacturer="AllKeyShop",
             model="Game Price Tracker",
             entry_type="service",

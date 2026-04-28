@@ -9,14 +9,12 @@ PAYMENT_METHOD_LOWEST_FEES = "lowest_fees"
 
 
 class MockConfigEntry:
-
     def __init__(self, data, options={}):
         self.data = data
         self.options = options
 
 
 class KeyforSteamDataUpdateCoordinator:
-
     def __init__(self, data, options={}):
         self.entry = MockConfigEntry(data, options)
         self.product_id = "190548"
@@ -143,7 +141,7 @@ def test_parsing():
     if offers_ld["image"] == "https://example.com/test_game.jpg":
         print("SUCCESS: Got correct image URL!")
     else:
-        print(f"FAILED: Expected https://example.com/test_game.jpg, got {offers_ld['image']}")
+        print(
+            f"FAILED: Expected https://example.com/test_game.jpg, got {offers_ld['image']}"
+        )
         exit(1)
-
-

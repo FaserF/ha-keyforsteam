@@ -136,6 +136,7 @@ class KeyforSteamDataUpdateCoordinator(DataUpdateCoordinator):
             "offers": [],
             "rating": None,
             "last_updated": datetime.now().isoformat(),
+            "release_date": product_data.get("releaseDate"),
         }
 
         rating_data = product_data.get("aggregateRating", {})
@@ -416,7 +417,6 @@ async def async_setup_entry(
     _LOGGER.debug("Setting up KeyforSteam sensors for entry: %s", entry.entry_id)
 
     coordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
-
 
     entities = [
         KeyforSteamPriceSensor(coordinator, entry),
