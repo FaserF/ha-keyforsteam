@@ -1,0 +1,68 @@
+"""Event entity for KeyforSteam price alerts."""
+
+import logging
+from homeassistant.components.event import EventEntity
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers.entity import DeviceInfo
+from homeassistant.helpers.update_coordinator import CoordinatorEntity
+
+from .const import DOMAIN
+
+_LOGGER = logging.getLogger(__name__)
+
+
+async def async_setup_entry(
+    hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
+):
+    """Set up KeyforSteam event entities from a config entry."""
+    _LOGGER.debug("Setting up KeyforSteam event entities for entry: %s", entry.entry_id)
+    coordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
+
+    async_add_entities([KeyforSteamPriceDropEvent(coordinator, entry)])
+
+
+class KeyforSteamPriceDropEvent(CoordinatorEntity, EventEntity):
+    """Representation of a KeyforSteam price drop event."""
+
+    _attr_event_types = ["price_drop"]
+    _attr_translation_key = "price_drop_event"
+    _attr_has_entity_name = True
+
+    def __init__(self, coordinator, entry: ConfigEntry):
+        """Initialize the event entity."""
+        super().__init__(coordinator)
+        self._entry = entry
+        self._attr_unique_id = f"keyforsteam_{coordinator.product_id}_price_drop_event"
+        self._last_price = None
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        """Return device information for grouping entities."""
+        return DeviceInfo(
+            identifiers={(DOMAIN, self.coordinator.product_id)},
+            name=self.coordinator.product_name
+            or f"Game {self.coordinator.product_id}",
+            manufacturer="AllKeyShop",
+            model="Game Price Tracker",
+            entry_type="service",
+        )
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        """Handle updated data from the coordinator."""
+        if self.coordinator.data:
+            current_price = self.coordinator.data.get("low_price")
+            if current_price is not None:
+                if self._last_price is not None and current_price < self._last_price:
+                    self._trigger_event(
+                        "price_drop",
+                        {
+                            "previous_price": self._last_price,
+                            "current_price": current_price,
+                            "difference": round(self._last_price - current_price, 2),
+                        },
+                    )
+                self._last_price = current_price
+        super()._handle_coordinator_update()

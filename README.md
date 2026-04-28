@@ -90,8 +90,51 @@ This integration supports all localized versions of the AllKeyShop network. It a
 - **State**: Displays the cover image of the game.
 - **Note**: Standard disabled by default. Can be enabled in the entity registry settings.
 
+### Price Drop Event (`event.keyforsteam_<game>_price_drop_event`)
+- **Fires**: When the lowest price decreases.
+- **Event Data**: `previous_price`, `current_price`, `difference`.
+
 ### Update Button (`button.keyforsteam_<game>_update`)
 - **Action**: Immediately refresh the game data.
+
+---
+
+## Integration Actions ⚡
+
+### `keyforsteam.get_prices`
+Fetch top prices dynamically for any game without requiring persistent sensors.
+- **Arguments**: `game_name` (e.g., `"Elden Ring"`)
+- **Returns**: 
+  - `game_name`: The catalog match.
+  - `url`: The comparison page URL.
+  - `best_price`: The overall lowest price.
+  - `offers`: List of the top 5 deals.
+
+---
+
+## Assist Sprachsteuerung 🗣️
+
+Um Spielepreise per Sprachbefehl abzufragen, füge folgendes zu deiner `/config/configuration.yaml` hinzu:
+
+```yaml
+intent_script:
+  GetKeyForSteamPrice:
+    speech:
+      text: "Das Spiel {{ game }} kostet aktuell {{ states('sensor.keyforsteam_' ~ game | lower | replace(' ', '_') ~ '_price') }} Euro."
+```
+
+Füge dann in `/config/custom_sentences/de/keyforsteam.yaml` folgendes ein:
+
+```yaml
+language: "de"
+intents:
+  GetKeyForSteamPrice:
+    data:
+      - sentences:
+          - "wie viel kostet {game}"
+          - "was kostet {game}"
+```
+
 
 
 ---

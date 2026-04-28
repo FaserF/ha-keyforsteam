@@ -85,6 +85,11 @@
         "name": "Cover-Bild"
       }
     },
+    "event": {
+      "price_drop_event": {
+        "name": "Preissenkung Event"
+      }
+    },
     "button": {
       "update_button": {
         "name": "Jetzt aktualisieren"

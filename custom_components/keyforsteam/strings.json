@@ -85,6 +85,11 @@
         "name": "Game Cover"
       }
     },
+    "event": {
+      "price_drop_event": {
+        "name": "Price Drop Event"
+      }
+    },
     "button": {
       "update_button": {
         "name": "Update Now"

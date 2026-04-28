@@ -89,7 +89,7 @@ class KeyforSteamDataUpdateCoordinator:
         return {"low_price": low_price}
 
 
-def run_test():
+def test_parsing():
     html = """
     <html>
     <head>
@@ -147,5 +147,3 @@ def run_test():
         exit(1)
 
 
-if __name__ == "__main__":
-    run_test()
