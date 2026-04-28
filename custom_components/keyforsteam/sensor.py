@@ -104,8 +104,16 @@ class KeyforSteamDataUpdateCoordinator(DataUpdateCoordinator):
 
         for match in matches:
             try:
+                # Clean up the match (sometimes has leading/trailing garbage)
+                match = match.strip()
+                if not match:
+                    continue
                 data = json.loads(match)
-                if isinstance(data, dict):
+                if isinstance(data, list):
+                    for item in data:
+                        if isinstance(item, dict) and item.get("@type") == "Product":
+                            return item
+                elif isinstance(data, dict):
                     if data.get("@type") == "Product":
                         return data
                     if "@graph" in data:
@@ -382,10 +390,36 @@ class KeyforSteamDataUpdateCoordinator(DataUpdateCoordinator):
                                 else:
                                     offers = js_offers
 
-                        if offers and not offers.get("release_date"):
-                            rd_match = re.search(r'"releaseDate"\s*:\s*"([^"]+)"', html)
-                            if rd_match:
-                                offers["release_date"] = rd_match.group(1)
+                        if offers:
+                            # Extract release date if available in JSON-LD or meta tags
+                            if not offers.get("release_date"):
+                                if product_data and "releaseDate" in product_data:
+                                    offers["release_date"] = product_data.get(
+                                        "releaseDate"
+                                    )
+                                else:
+                                    # Last resort: search for releaseDate anywhere in HTML
+                                    rd_match = re.search(
+                                        r'["\']releaseDate["\']\s*:\s*["\']([^"\']+)["\']',
+                                        html,
+                                    )
+                                    if rd_match:
+                                        offers["release_date"] = rd_match.group(1)
+                                    else:
+                                        # Meta tag fallbacks
+                                        meta_match = re.search(
+                                            r'<meta[^>]+property=["\']og:release_date["\'][^>]+content=["\']([^"\']+)["\']',
+                                            html,
+                                            re.I,
+                                        )
+                                        if not meta_match:
+                                            meta_match = re.search(
+                                                r'<meta[^>]+name=["\']release_date["\'][^>]+content=["\']([^"\']+)["\']',
+                                                html,
+                                                re.I,
+                                            )
+                                        if meta_match:
+                                            offers["release_date"] = meta_match.group(1)
 
                         if not offers:
                             self.consecutive_failures += 1
@@ -515,6 +549,7 @@ class KeyforSteamPriceSensor(KeyforSteamBaseEntity):
             "currency": data.get("currency"),
             "offer_count": data.get("offer_count"),
             "last_updated": data.get("last_updated"),
+            "release_date": data.get("release_date"),
         }
 
         rating = data.get("rating")

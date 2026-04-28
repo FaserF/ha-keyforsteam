@@ -26,6 +26,7 @@ class KeyforSteamUpdateButton(ButtonEntity):
     _attr_icon = "mdi:refresh"
     _attr_has_entity_name = True
     _attr_translation_key = "update_button"
+    _attr_entity_registry_enabled_default = False
 
     def __init__(self, coordinator, entry: ConfigEntry):
         """Initialize the button."""

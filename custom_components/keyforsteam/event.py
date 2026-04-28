@@ -36,6 +36,11 @@ class KeyforSteamPriceDropEvent(CoordinatorEntity, EventEntity):
         self._entry = entry
         self._attr_unique_id = f"keyforsteam_{coordinator.product_id}_price_drop_event"
         self._last_price = None
+        self._event_data = {
+            "previous_price": 0.0,
+            "current_price": 0.0,
+            "difference": 0.0,
+        }
 
     @property
     def device_info(self) -> DeviceInfo:
@@ -51,20 +56,39 @@ class KeyforSteamPriceDropEvent(CoordinatorEntity, EventEntity):
             else None,
         )
 
+    @property
+    def extra_state_attributes(self):
+        """Return the state attributes."""
+        return {
+            "previous_price": self._event_data.get("previous_price"),
+            "current_price": self._event_data.get("current_price"),
+            "difference": self._event_data.get("difference"),
+        }
+
     @callback
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
-        if self.coordinator.data:
-            current_price = self.coordinator.data.get("low_price")
-            if current_price is not None:
-                if self._last_price is not None and current_price < self._last_price:
-                    self._trigger_event(
-                        "price_drop",
-                        {
-                            "previous_price": self._last_price,
-                            "current_price": current_price,
-                            "difference": round(self._last_price - current_price, 2),
-                        },
-                    )
-                self._last_price = current_price
-        super()._handle_coordinator_update()
+        if not self.coordinator.data:
+            return
+
+        current_price = self.coordinator.data.get("low_price")
+        if current_price is None:
+            return
+
+        # Trigger event only if price actually dropped
+        if self._last_price is not None and current_price < self._last_price:
+            self._event_data = {
+                "previous_price": self._last_price,
+                "current_price": current_price,
+                "difference": round(self._last_price - current_price, 2),
+            }
+            self._trigger_event("price_drop", self._event_data)
+            _LOGGER.debug(
+                "Price drop event triggered for %s: %s -> %s",
+                self.coordinator.product_id,
+                self._last_price,
+                current_price,
+            )
+
+        self._last_price = current_price
+        self.async_write_ha_state()

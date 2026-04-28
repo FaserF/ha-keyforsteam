@@ -14,7 +14,8 @@ async def test_async_get_config_entry_diagnostics(mock_hass, mock_config_entry):
     coordinator.currency = "eur"
     coordinator.consecutive_failures = 0
     coordinator.last_successful_fetch = None
-    coordinator.repair_created = False
+    coordinator.api_repair_created = False
+    coordinator.not_found_repair_created = False
     coordinator.last_update_success = True
     coordinator.data = {"name": "Test Game", "low_price": 10.0, "currency": "EUR"}
 

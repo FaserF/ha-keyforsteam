@@ -87,7 +87,21 @@
     },
     "event": {
       "price_drop_event": {
-        "name": "Price Drop Event"
+        "name": "Price Drop Event",
+        "state": {
+          "price_drop": "Price Drop"
+        },
+        "state_attributes": {
+          "previous_price": {
+            "name": "Previous Price"
+          },
+          "current_price": {
+            "name": "Current Price"
+          },
+          "difference": {
+            "name": "Price Difference"
+          }
+        }
       }
     },
     "calendar": {

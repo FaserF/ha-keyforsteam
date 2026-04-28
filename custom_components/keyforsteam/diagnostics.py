@@ -31,19 +31,13 @@ async def async_get_config_entry_diagnostics(
                 if coordinator.last_successful_fetch
                 else None
             ),
-            "repair_created": coordinator.repair_created,
+            "api_repair_created": coordinator.api_repair_created,
+            "not_found_repair_created": coordinator.not_found_repair_created,
             "last_update_success": coordinator.last_update_success,
         },
     }
 
     if coordinator.data:
-        diagnostics["data"] = {
-            "name": coordinator.data.get("name"),
-            "low_price": coordinator.data.get("low_price"),
-            "high_price": coordinator.data.get("high_price"),
-            "offer_count": coordinator.data.get("offer_count"),
-            "currency": coordinator.data.get("currency"),
-            "last_updated": coordinator.data.get("last_updated"),
-        }
+        diagnostics["data"] = coordinator.data
 
     return diagnostics
