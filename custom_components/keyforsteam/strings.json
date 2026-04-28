@@ -52,10 +52,12 @@
           "price_alert_threshold": "Price Alert Threshold",
           "currency": "Currency",
           "allow_accounts": "Include Accounts/Logins",
-          "payment_method": "Payment Method"
+          "payment_method": "Payment Method",
+          "update_interval": "Update Interval (hours)"
         },
         "data_description": {
-          "price_alert_threshold": "Get alerted when price drops below this value (0 = disabled)"
+          "price_alert_threshold": "Get alerted when price drops below this value (0 = disabled)",
+          "update_interval": "How often to check for price updates (1-24 hours)"
         }
       }
     }

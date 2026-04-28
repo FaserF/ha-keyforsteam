@@ -186,7 +186,43 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 async def async_update_options(hass: HomeAssistant, entry: ConfigEntry) -> None:
     """Handle options update."""
     _LOGGER.debug("Options updated for KeyforSteam entry: %s", entry.entry_id)
-    await hass.config_entries.async_reload(entry.entry_id)
+    coordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
+
+    # Check what changed to avoid unnecessary reloads
+    # The threshold change via number entity shouldn't trigger a reload
+    # because it causes 'Unavailable' flicker on all entities.
+
+    # 1. Update interval change
+    from .const import CONF_UPDATE_INTERVAL, UPDATE_INTERVAL_HOURS
+    from datetime import timedelta
+
+    new_interval = entry.options.get(CONF_UPDATE_INTERVAL, UPDATE_INTERVAL_HOURS)
+    if (
+        hasattr(coordinator, "update_interval_hours")
+        and coordinator.update_interval_hours != new_interval
+    ):
+        coordinator.update_interval_hours = new_interval
+        coordinator.update_interval = timedelta(hours=new_interval)
+        _LOGGER.debug("Updated coordinator interval to %s hours", new_interval)
+
+    # 2. Check for breaking changes that require reload
+    from .const import CONF_CURRENCY, CONF_ALLOW_ACCOUNTS, CONF_PAYMENT_METHOD
+
+    # Compare with current coordinator state
+    should_reload = (
+        coordinator.currency != entry.options.get(CONF_CURRENCY, coordinator.currency)
+        or coordinator.allow_accounts
+        != entry.options.get(CONF_ALLOW_ACCOUNTS, coordinator.allow_accounts)
+        or coordinator.payment_method
+        != entry.options.get(CONF_PAYMENT_METHOD, coordinator.payment_method)
+    )
+
+    if should_reload:
+        _LOGGER.debug("Reloading integration due to core setting change")
+        await hass.config_entries.async_reload(entry.entry_id)
+    else:
+        # Just refresh states to reflect potential threshold changes immediately
+        coordinator.async_set_updated_data(coordinator.data)
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:

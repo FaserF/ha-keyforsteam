@@ -65,6 +65,20 @@ async def test_async_setup_entry(mock_hass, mock_config_entry):
 @pytest.mark.asyncio
 async def test_async_update_options(mock_hass, mock_config_entry):
     """Test handling options update."""
+    coordinator = MagicMock()
+    coordinator.currency = "eur"
+    coordinator.allow_accounts = False
+    coordinator.payment_method = "lowest_fees"
+    coordinator.update_interval_hours = 1
+    mock_hass.data[DOMAIN] = {mock_config_entry.entry_id: {"coordinator": coordinator}}
+
+    # Test threshold change (no reload)
+    mock_config_entry.options = {"price_alert_threshold": 50.0}
+    await async_update_options(mock_hass, mock_config_entry)
+    assert mock_hass.config_entries.async_reload.call_count == 0
+
+    # Test core setting change (reload)
+    mock_config_entry.options = {"currency": "usd"}
     await async_update_options(mock_hass, mock_config_entry)
     mock_hass.config_entries.async_reload.assert_called_once_with(
         mock_config_entry.entry_id

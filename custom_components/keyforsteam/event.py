@@ -36,7 +36,7 @@ class KeyforSteamPriceDropEvent(CoordinatorEntity, EventEntity):
         self._entry = entry
         self._attr_unique_id = f"keyforsteam_{coordinator.product_id}_price_drop_event"
         self._last_price = None
-        self._event_data = {
+        self._attr_extra_state_attributes = {
             "previous_price": 0.0,
             "current_price": 0.0,
             "difference": 0.0,
@@ -56,15 +56,6 @@ class KeyforSteamPriceDropEvent(CoordinatorEntity, EventEntity):
             else None,
         )
 
-    @property
-    def extra_state_attributes(self):
-        """Return the state attributes."""
-        return {
-            "previous_price": self._event_data.get("previous_price"),
-            "current_price": self._event_data.get("current_price"),
-            "difference": self._event_data.get("difference"),
-        }
-
     @callback
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
@@ -77,12 +68,14 @@ class KeyforSteamPriceDropEvent(CoordinatorEntity, EventEntity):
 
         # Trigger event only if price actually dropped
         if self._last_price is not None and current_price < self._last_price:
-            self._event_data = {
+            event_data = {
                 "previous_price": self._last_price,
                 "current_price": current_price,
                 "difference": round(self._last_price - current_price, 2),
             }
-            self._trigger_event("price_drop", self._event_data)
+            # Update attributes to reflect the last event
+            self._attr_extra_state_attributes = event_data
+            self._trigger_event("price_drop", event_data)
             _LOGGER.debug(
                 "Price drop event triggered for %s: %s -> %s",
                 self.coordinator.product_id,

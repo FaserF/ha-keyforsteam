@@ -52,10 +52,12 @@
           "price_alert_threshold": "Preisalarm-Schwellenwert",
           "currency": "Währung",
           "allow_accounts": "Accounts/Logins einbeziehen",
-          "payment_method": "Zahlungsmethode"
+          "payment_method": "Zahlungsmethode",
+          "update_interval": "Update-Intervall (Stunden)"
         },
         "data_description": {
-          "price_alert_threshold": "Lass dich benachrichtigen, wenn der Preis unter diesen Wert fällt (0 = deaktiviert)"
+          "price_alert_threshold": "Lass dich benachrichtigen, wenn der Preis unter diesen Wert fällt (0 = deaktiviert)",
+          "update_interval": "Wie oft nach Preis-Updates gesucht werden soll (1-24 Stunden)"
         }
       }
     }

@@ -66,7 +66,10 @@ async def test_number_entity():
     )
 
     entry = MagicMock()
+    entry.options = {"price_alert_threshold": 35.0}
+    entry.data = {}
     number_entity = KeyforSteamBudgetNumber(coordinator, entry)
+    number_entity.hass = MagicMock()
 
     # Test restore
     await number_entity.async_added_to_hass()
@@ -74,5 +77,7 @@ async def test_number_entity():
 
     # Test set value
     await number_entity.async_set_native_value(25.0)
+    # Manually update mock to simulate async_update_entry
+    number_entity._entry.options["price_alert_threshold"] = 25.0
     assert number_entity.native_value == 25.0
     assert number_entity.async_write_ha_state.called

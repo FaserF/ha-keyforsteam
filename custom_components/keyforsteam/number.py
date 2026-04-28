@@ -67,11 +67,31 @@ class KeyforSteamBudgetNumber(RestoreNumber):
     async def async_added_to_hass(self) -> None:
         """Restore last state."""
         await super().async_added_to_hass()
-        last_number_data = await self.async_get_last_number_data()
-        if last_number_data is not None:
-            self._attr_native_value = last_number_data.native_value
+        # Initial value from options
+        self._attr_native_value = float(
+            self._entry.options.get(
+                "price_alert_threshold",
+                self._entry.data.get("price_alert_threshold", 0.0),
+            )
+        )
+
+    @property
+    def native_value(self) -> float:
+        """Return the current value."""
+        return float(
+            self._entry.options.get(
+                "price_alert_threshold",
+                self._entry.data.get("price_alert_threshold", 0.0),
+            )
+        )
 
     async def async_set_native_value(self, value: float) -> None:
-        """Update the budget limit."""
+        """Update the budget limit and config entry options."""
         self._attr_native_value = value
+
+        # Update config entry options to keep in sync
+        new_options = dict(self._entry.options)
+        new_options["price_alert_threshold"] = value
+
+        self.hass.config_entries.async_update_entry(self._entry, options=new_options)
         self.async_write_ha_state()

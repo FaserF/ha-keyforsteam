@@ -17,6 +17,9 @@ from homeassistant.helpers.selector import (
     TextSelectorType,
     BooleanSelector,
     BooleanSelectorConfig,
+    NumberSelector,
+    NumberSelectorConfig,
+    NumberSelectorMode,
 )
 
 from .const import (
@@ -26,15 +29,15 @@ from .const import (
     CONF_PRODUCT_NAME,
     CONF_PRODUCT_SLUG,
     CONF_CURRENCY,
-    CONF_PRICE_ALERT_THRESHOLD,
     CONF_ALLOW_ACCOUNTS,
     CONF_PAYMENT_METHOD,
+    CONF_UPDATE_INTERVAL,
     PAYMENT_METHOD_BASE,
     PAYMENT_METHOD_CARD,
     PAYMENT_METHOD_PAYPAL,
     PAYMENT_METHOD_LOWEST_FEES,
     DEFAULT_CURRENCY,
-    DEFAULT_PRICE_ALERT_THRESHOLD,
+    UPDATE_INTERVAL_HOURS,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -285,10 +288,6 @@ class KeyforSteamOptionsFlow(config_entries.OptionsFlow):
         options = self.config_entry.options
         data = self.config_entry.data
 
-        current_threshold = options.get(
-            CONF_PRICE_ALERT_THRESHOLD,
-            data.get(CONF_PRICE_ALERT_THRESHOLD, DEFAULT_PRICE_ALERT_THRESHOLD),
-        )
         current_currency = options.get(
             CONF_CURRENCY, data.get(CONF_CURRENCY, DEFAULT_CURRENCY)
         )
@@ -299,14 +298,14 @@ class KeyforSteamOptionsFlow(config_entries.OptionsFlow):
             CONF_PAYMENT_METHOD,
             data.get(CONF_PAYMENT_METHOD, PAYMENT_METHOD_LOWEST_FEES),
         )
+        current_update_interval = options.get(
+            CONF_UPDATE_INTERVAL, data.get(CONF_UPDATE_INTERVAL, UPDATE_INTERVAL_HOURS)
+        )
 
         return self.async_show_form(
             step_id="init",
             data_schema=vol.Schema(
                 {
-                    vol.Optional(
-                        CONF_PRICE_ALERT_THRESHOLD, default=float(current_threshold)
-                    ): vol.Coerce(float),
                     vol.Optional(
                         CONF_CURRENCY, default=current_currency
                     ): SelectSelector(
@@ -337,6 +336,17 @@ class KeyforSteamOptionsFlow(config_entries.OptionsFlow):
                             ],
                             mode=SelectSelectorMode.DROPDOWN,
                             translation_key="payment_method",
+                        )
+                    ),
+                    vol.Optional(
+                        CONF_UPDATE_INTERVAL, default=int(current_update_interval)
+                    ): NumberSelector(
+                        NumberSelectorConfig(
+                            min=1,
+                            max=24,
+                            step=1,
+                            mode=NumberSelectorMode.BOX,
+                            unit_of_measurement="h",
                         )
                     ),
                 }

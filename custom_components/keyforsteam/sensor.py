@@ -27,6 +27,7 @@ from .const import (
     CONF_CURRENCY,
     CONF_ALLOW_ACCOUNTS,
     CONF_PAYMENT_METHOD,
+    CONF_UPDATE_INTERVAL,
     PAYMENT_METHOD_CARD,
     PAYMENT_METHOD_PAYPAL,
     PAYMENT_METHOD_LOWEST_FEES,
@@ -61,6 +62,10 @@ class KeyforSteamDataUpdateCoordinator(DataUpdateCoordinator):
             CONF_PAYMENT_METHOD,
             entry.data.get(CONF_PAYMENT_METHOD, PAYMENT_METHOD_LOWEST_FEES),
         )
+        self.update_interval_hours = entry.options.get(
+            CONF_UPDATE_INTERVAL,
+            entry.data.get(CONF_UPDATE_INTERVAL, UPDATE_INTERVAL_HOURS),
+        )
 
         # Failure tracking for HA Repairs
         self.consecutive_failures = 0
@@ -72,7 +77,7 @@ class KeyforSteamDataUpdateCoordinator(DataUpdateCoordinator):
             hass,
             _LOGGER,
             name=f"KeyforSteam_{self.product_id}",
-            update_interval=UPDATE_INTERVAL,
+            update_interval=timedelta(hours=self.update_interval_hours),
         )
 
     def _build_product_url(self):

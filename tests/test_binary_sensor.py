@@ -30,7 +30,10 @@ def test_price_alert_sensor():
     coordinator.product_name = "Test Game"
     coordinator.data = {"low_price": 15.0}
 
-    sensor = KeyforSteamPriceAlertSensor(coordinator, MagicMock(), threshold=20.0)
+    entry = MagicMock()
+    entry.options = {"price_alert_threshold": 20.0}
+    entry.data = {}
+    sensor = KeyforSteamPriceAlertSensor(coordinator, entry)
     assert sensor.is_on is True
     assert sensor.extra_state_attributes["current_price"] == 15.0
 

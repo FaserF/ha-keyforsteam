@@ -25,15 +25,12 @@ async def async_setup_entry(
     """Set up KeyforSteam binary sensors from a config entry."""
     coordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
 
-    entities = [KeyforSteamStockBinarySensor(coordinator, entry)]
-
-    threshold = entry.options.get(
-        CONF_PRICE_ALERT_THRESHOLD, DEFAULT_PRICE_ALERT_THRESHOLD
+    async_add_entities(
+        [
+            KeyforSteamStockBinarySensor(coordinator, entry),
+            KeyforSteamPriceAlertSensor(coordinator, entry),
+        ]
     )
-    if threshold and threshold > 0:
-        entities.append(KeyforSteamPriceAlertSensor(coordinator, entry, threshold))
-
-    async_add_entities(entities)
 
 
 class KeyforSteamBaseBinarySensor(BinarySensorEntity):
@@ -79,11 +76,22 @@ class KeyforSteamPriceAlertSensor(KeyforSteamBaseBinarySensor):
     _attr_icon = "mdi:tag-alert"
     _attr_translation_key = "price_alert"
 
-    def __init__(self, coordinator, entry: ConfigEntry, threshold: float):
+    def __init__(self, coordinator, entry: ConfigEntry):
         """Initialize the binary sensor."""
         super().__init__(coordinator, entry)
-        self._threshold = threshold
         self._attr_unique_id = f"keyforsteam_{coordinator.product_id}_price_alert"
+
+    @property
+    def _threshold(self) -> float:
+        """Get current threshold from options."""
+        return float(
+            self._entry.options.get(
+                CONF_PRICE_ALERT_THRESHOLD,
+                self._entry.data.get(
+                    CONF_PRICE_ALERT_THRESHOLD, DEFAULT_PRICE_ALERT_THRESHOLD
+                ),
+            )
+        )
 
     @property
     def name(self):
@@ -97,7 +105,7 @@ class KeyforSteamPriceAlertSensor(KeyforSteamBaseBinarySensor):
             return False
 
         low_price = self._coordinator.data.get("low_price")
-        if low_price is None:
+        if low_price is None or self._threshold <= 0:
             return False
 
         return float(low_price) <= self._threshold
@@ -105,13 +113,14 @@ class KeyforSteamPriceAlertSensor(KeyforSteamBaseBinarySensor):
     @property
     def extra_state_attributes(self):
         """Return the state attributes."""
-        attributes = {"threshold": self._threshold}
+        threshold = self._threshold
+        attributes = {"threshold": threshold}
 
         if self._coordinator.data:
             low_price = self._coordinator.data.get("low_price")
             attributes["current_price"] = low_price
-            if low_price is not None:
-                attributes["price_difference"] = round(low_price - self._threshold, 2)
+            if low_price is not None and threshold > 0:
+                attributes["price_difference"] = round(low_price - threshold, 2)
 
         return attributes
 

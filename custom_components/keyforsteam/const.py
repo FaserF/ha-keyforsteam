@@ -32,6 +32,7 @@ CONF_CURRENCY = "currency"
 CONF_PRICE_ALERT_THRESHOLD = "price_alert_threshold"
 CONF_ALLOW_ACCOUNTS = "allow_accounts"
 CONF_PAYMENT_METHOD = "payment_method"
+CONF_UPDATE_INTERVAL = "update_interval"
 
 # Payment Methods
 PAYMENT_METHOD_BASE = "base"
