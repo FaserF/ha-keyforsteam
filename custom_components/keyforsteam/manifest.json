@@ -9,5 +9,5 @@
   "integration_type": "service",
   "iot_class": "cloud_polling",
   "issue_tracker": "https://github.com/faserf/ha-keyforsteam/issues",
-  "version": "2026.4.0"
+  "version": "2026.4.1-dev0"
 }
