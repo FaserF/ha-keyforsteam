@@ -86,8 +86,13 @@ This integration supports all localized versions of the AllKeyShop network. It a
 - **State**: `on` if price is below the threshold set in integration options.
 - **Configuration**: Set the threshold in the integration's **Configure** menu.
 
+### Image Entity (`image.keyforsteam_<game>_game_image`)
+- **State**: Displays the cover image of the game.
+- **Note**: Standard disabled by default. Can be enabled in the entity registry settings.
+
 ### Update Button (`button.keyforsteam_<game>_update`)
 - **Action**: Immediately refresh the game data.
+
 
 ---
 

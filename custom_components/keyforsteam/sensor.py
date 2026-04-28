@@ -415,11 +415,8 @@ async def async_setup_entry(
     """Set up the KeyforSteam sensors from a config entry."""
     _LOGGER.debug("Setting up KeyforSteam sensors for entry: %s", entry.entry_id)
 
-    coordinator = KeyforSteamDataUpdateCoordinator(hass, entry)
+    coordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
 
-    await coordinator.async_config_entry_first_refresh()
-
-    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = {"coordinator": coordinator}
 
     entities = [
         KeyforSteamPriceSensor(coordinator, entry),

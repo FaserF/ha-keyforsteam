@@ -80,6 +80,11 @@
         "name": "Lagerstatus"
       }
     },
+    "image": {
+      "game_image": {
+        "name": "Cover-Bild"
+      }
+    },
     "button": {
       "update_button": {
         "name": "Jetzt aktualisieren"

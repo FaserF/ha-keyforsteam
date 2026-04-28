@@ -11,7 +11,7 @@ _LOGGER = logging.getLogger(__name__)
 
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
-PLATFORMS = ["sensor", "binary_sensor", "button"]
+PLATFORMS = ["sensor", "binary_sensor", "button", "image"]
 
 
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
@@ -25,8 +25,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     _LOGGER.debug("Setting up KeyforSteam entry with entry_id: %s", entry.entry_id)
     hass.data.setdefault(DOMAIN, {})
 
+    # Create and initialize the coordinator here to prevent race conditions across platforms
+    from .sensor import KeyforSteamDataUpdateCoordinator
+    coordinator = KeyforSteamDataUpdateCoordinator(hass, entry)
+    await coordinator.async_config_entry_first_refresh()
+    hass.data[DOMAIN][entry.entry_id] = {"coordinator": coordinator}
+
     # Determine which platforms to load
-    platforms_to_load = ["sensor"]
+    platforms_to_load = ["sensor", "image"]
 
     # Only load binary_sensor if price alert threshold is configured
     threshold = entry.options.get(
@@ -62,7 +68,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     _LOGGER.debug("Unloading KeyforSteam entry with entry_id: %s", entry.entry_id)
 
     # Determine which platforms were loaded
-    platforms_to_unload = ["sensor"]
+    platforms_to_unload = ["sensor", "image"]
     threshold = entry.options.get(
         CONF_PRICE_ALERT_THRESHOLD, DEFAULT_PRICE_ALERT_THRESHOLD
     )
@@ -82,3 +88,4 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         )
 
     return unloaded
+

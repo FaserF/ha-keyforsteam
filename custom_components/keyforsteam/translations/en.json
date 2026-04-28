@@ -80,6 +80,11 @@
         "name": "Stock Status"
       }
     },
+    "image": {
+      "game_image": {
+        "name": "Game Cover"
+      }
+    },
     "button": {
       "update_button": {
         "name": "Update Now"
