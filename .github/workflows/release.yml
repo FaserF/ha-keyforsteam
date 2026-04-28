@@ -1,12 +1,19 @@
-﻿name: Release
+name: Release
 on:
   workflow_dispatch:
     inputs:
+      bump_type:
+        description: 'Bump Type'
+        required: true
+        type: choice
+        options: [patch, minor, major]
+        default: patch
       release_type:
         description: 'Release Type'
         required: true
         type: choice
         options: [stable, beta, nightly]
+        default: stable
 jobs:
   release:
     runs-on: ubuntu-latest
@@ -20,7 +27,13 @@ jobs:
       - name: Calculate Version
         id: version
         run: |
-          NEW_VERSION=$(python .github/scripts/version_manager.py bump --type ${{ inputs.release_type }})
+          BUMP_ARGS="--bump ${{ inputs.bump_type }}"
+          if [[ "${{ inputs.release_type }}" == "beta" ]]; then
+            BUMP_ARGS="$BUMP_ARGS --beta"
+          elif [[ "${{ inputs.release_type }}" == "nightly" ]]; then
+            BUMP_ARGS="--dev"
+          fi
+          NEW_VERSION=$(python .github/scripts/version_manager.py bump $BUMP_ARGS)
           echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
       - name: Create Release Tag
         if: inputs.release_type != 'nightly'
@@ -61,6 +74,6 @@ jobs:
       - name: Post-Release Dev Bump
         if: inputs.release_type != 'nightly'
         run: |
-          NEW_DEV=$(python .github/scripts/version_manager.py bump --type dev)
+          NEW_DEV=$(python .github/scripts/version_manager.py bump --dev)
           git commit -am "chore(dev): bump to $NEW_DEV"
           git push origin main
