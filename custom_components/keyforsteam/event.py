@@ -46,6 +46,9 @@ class KeyforSteamPriceDropEvent(CoordinatorEntity, EventEntity):
             manufacturer="AllKeyShop",
             model="Game Price Tracker",
             entry_type="service",
+            configuration_url=self.coordinator.data.get("product_url")
+            if self.coordinator.data
+            else None,
         )
 
     @callback

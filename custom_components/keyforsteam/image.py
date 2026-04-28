@@ -49,6 +49,17 @@ class KeyforSteamGameImage(ImageEntity):
         return None
 
     @property
+    def image_last_updated(self):
+        """Return timestamp of when the image was last updated."""
+        if self.coordinator.data:
+            last_updated = self.coordinator.data.get("last_updated")
+            if last_updated:
+                import homeassistant.util.dt as dt_util
+
+                return dt_util.parse_datetime(last_updated)
+        return None
+
+    @property
     def device_info(self) -> DeviceInfo:
         """Return device information for grouping entities."""
         return DeviceInfo(
@@ -57,6 +68,9 @@ class KeyforSteamGameImage(ImageEntity):
             manufacturer="AllKeyShop",
             model="Game Price Tracker",
             entry_type="service",
+            configuration_url=self.coordinator.data.get("product_url")
+            if self.coordinator.data
+            else None,
         )
 
     async def async_added_to_hass(self):

@@ -60,6 +60,9 @@ class KeyforSteamBaseBinarySensor(BinarySensorEntity):
             manufacturer="AllKeyShop",
             model="Game Price Tracker",
             entry_type="service",
+            configuration_url=self._coordinator.data.get("product_url")
+            if self._coordinator.data
+            else None,
         )
 
     async def async_added_to_hass(self):

@@ -1,0 +1,11 @@
+get_prices:
+  name: Get Game Prices
+  description: Fetches the top price offers for any game dynamically.
+  fields:
+    game_name:
+      name: Game Name
+      description: The name of the game you want to search for.
+      required: true
+      example: "Elden Ring"
+      selector:
+        text:

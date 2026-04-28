@@ -50,4 +50,7 @@ class KeyforSteamUpdateButton(ButtonEntity):
             manufacturer="AllKeyShop",
             model="Game Price Tracker",
             entry_type="service",
+            configuration_url=self._coordinator.data.get("product_url")
+            if self._coordinator.data
+            else None,
         )

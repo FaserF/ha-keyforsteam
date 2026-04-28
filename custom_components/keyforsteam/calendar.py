@@ -49,6 +49,9 @@ class KeyforSteamReleaseCalendar(CoordinatorEntity, CalendarEntity):
             manufacturer="AllKeyShop",
             model="Game Price Tracker",
             entry_type="service",
+            configuration_url=self.coordinator.data.get("product_url")
+            if self.coordinator.data
+            else None,
         )
 
     @property
@@ -87,7 +90,7 @@ class KeyforSteamReleaseCalendar(CoordinatorEntity, CalendarEntity):
         if not event:
             return []
 
-        if event.start >= start_date and event.start <= end_date:
+        if event.start < end_date and event.end > start_date:
             return [event]
 
         return []

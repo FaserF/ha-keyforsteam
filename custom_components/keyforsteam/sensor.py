@@ -382,6 +382,11 @@ class KeyforSteamDataUpdateCoordinator(DataUpdateCoordinator):
                                 else:
                                     offers = js_offers
 
+                        if offers and not offers.get("release_date"):
+                            rd_match = re.search(r'"releaseDate"\s*:\s*"([^"]+)"', html)
+                            if rd_match:
+                                offers["release_date"] = rd_match.group(1)
+
                         if not offers:
                             self.consecutive_failures += 1
                             await self._handle_api_repair(True)
@@ -452,6 +457,9 @@ class KeyforSteamBaseEntity(SensorEntity):
             manufacturer="AllKeyShop",
             model="Game Price Tracker",
             entry_type="service",
+            configuration_url=self._coordinator.data.get("product_url")
+            if self._coordinator.data
+            else None,
         )
 
     async def async_added_to_hass(self):
