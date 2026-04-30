@@ -160,8 +160,16 @@ class KeyforSteamDataUpdateCoordinator(DataUpdateCoordinator):
             }
 
         if offers_data.get("@type") == "AggregateOffer":
-            result["low_price"] = offers_data.get("lowPrice")
-            result["high_price"] = offers_data.get("highPrice")
+            try:
+                result["low_price"] = float(offers_data.get("lowPrice", 0))
+            except (TypeError, ValueError):
+                result["low_price"] = None
+
+            try:
+                result["high_price"] = float(offers_data.get("highPrice", 0))
+            except (TypeError, ValueError):
+                result["high_price"] = None
+
             result["currency"] = offers_data.get("priceCurrency", "EUR")
             result["offer_count"] = offers_data.get("offerCount", 0)
 
