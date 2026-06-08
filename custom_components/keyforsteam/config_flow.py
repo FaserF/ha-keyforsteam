@@ -30,6 +30,7 @@ from .const import (
     CONF_PRODUCT_SLUG,
     CONF_CURRENCY,
     CONF_ALLOW_ACCOUNTS,
+    CONF_IGNORE_UNREALISTIC_PRICES,
     CONF_PAYMENT_METHOD,
     CONF_UPDATE_INTERVAL,
     PAYMENT_METHOD_BASE,
@@ -41,6 +42,17 @@ from .const import (
     KEYFORSTEAM_PRODUCT_URL,
     ALLKEYSHOP_PRODUCT_URL,
 )
+
+
+def safe_float(value, default=0.0) -> float:
+    """Safely convert a value to float, handling None, string, etc."""
+    if value is None:
+        return default
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -133,7 +145,14 @@ class KeyforSteamConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: 
         slug = slug.strip("-")
         return slug
 
-    async def _check_game_has_prices(self, slug: str, currency: str) -> bool:
+    async def _check_game_has_prices(
+        self,
+        slug: str,
+        currency: str,
+        allow_accounts: bool,
+        payment_method: str,
+        ignore_unrealistic: bool,
+    ) -> bool:
         """Check if the game has any active price listings."""
         if currency == "eur":
             url = KEYFORSTEAM_PRODUCT_URL.format(slug=slug)
@@ -163,17 +182,52 @@ class KeyforSteamConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: 
 
                             game_data = json.loads(match.group(1))
                             prices = game_data.get("prices", [])
-                            # Check if any price is greater than 0
+                            valid_prices = []
                             for p in prices:
-                                # We can check price, priceCard, or pricePaypal
-                                for key in ["price", "priceCard", "pricePaypal"]:
-                                    val = p.get(key)
-                                    if val is not None:
-                                        try:
-                                            if float(val) > 0:
-                                                return True
-                                        except (ValueError, TypeError):
-                                            pass
+                                if not allow_accounts and p.get("account"):
+                                    continue
+
+                                # Select price based on payment method
+                                price_val = safe_float(p.get("price"))
+                                if payment_method == PAYMENT_METHOD_CARD:
+                                    price_val = safe_float(
+                                        p.get("priceCard")
+                                    ) or safe_float(p.get("price"))
+                                elif payment_method == PAYMENT_METHOD_PAYPAL:
+                                    price_val = safe_float(
+                                        p.get("pricePaypal")
+                                    ) or safe_float(p.get("price"))
+                                elif payment_method == PAYMENT_METHOD_LOWEST_FEES:
+                                    price_fields = []
+                                    if p.get("priceCard") is not None:
+                                        card_price = safe_float(p.get("priceCard"))
+                                        if card_price > 0:
+                                            price_fields.append(card_price)
+                                    if p.get("pricePaypal") is not None:
+                                        paypal_price = safe_float(p.get("pricePaypal"))
+                                        if paypal_price > 0:
+                                            price_fields.append(paypal_price)
+                                    if price_fields:
+                                        price_val = min(price_fields)
+                                    else:
+                                        price_val = safe_float(p.get("price"))
+
+                                if price_val <= 0:
+                                    continue
+                                valid_prices.append(price_val)
+
+                            if valid_prices:
+                                valid_prices.sort()
+                                if ignore_unrealistic:
+                                    valid_prices = [
+                                        v for v in valid_prices if v >= 0.80
+                                    ]
+                                    if len(valid_prices) >= 2:
+                                        p1 = valid_prices[0]
+                                        p2 = valid_prices[1]
+                                        if (p2 - p1) / p2 >= 0.70:
+                                            valid_prices.pop(0)
+                                return len(valid_prices) > 0
         except Exception as e:
             _LOGGER.error("Error checking game prices in config flow: %s", e)
         return False
@@ -225,6 +279,7 @@ class KeyforSteamConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: 
             selected_id = user_input.get("game_selection")
             currency = user_input.get(CONF_CURRENCY, DEFAULT_CURRENCY)
             allow_accounts = user_input.get(CONF_ALLOW_ACCOUNTS, False)
+            ignore_unrealistic = user_input.get(CONF_IGNORE_UNREALISTIC_PRICES, True)
             payment_method = user_input.get(
                 CONF_PAYMENT_METHOD, PAYMENT_METHOD_LOWEST_FEES
             )
@@ -247,7 +302,13 @@ class KeyforSteamConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: 
 
                 # Check if we need to show the price warning
                 if getattr(self, "_price_checked", None) != game_id:
-                    has_prices = await self._check_game_has_prices(game_slug, currency)
+                    has_prices = await self._check_game_has_prices(
+                        game_slug,
+                        currency,
+                        allow_accounts,
+                        payment_method,
+                        ignore_unrealistic,
+                    )
                     if not has_prices:
                         self._price_checked = game_id
                         errors["base"] = "no_prices_warning"
@@ -261,6 +322,7 @@ class KeyforSteamConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: 
                             CONF_PRODUCT_SLUG: game_slug,
                             CONF_CURRENCY: currency,
                             CONF_ALLOW_ACCOUNTS: allow_accounts,
+                            CONF_IGNORE_UNREALISTIC_PRICES: ignore_unrealistic,
                             CONF_PAYMENT_METHOD: payment_method,
                         },
                     )
@@ -298,6 +360,9 @@ class KeyforSteamConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: 
                     vol.Optional(CONF_ALLOW_ACCOUNTS, default=False): BooleanSelector(
                         BooleanSelectorConfig()
                     ),
+                    vol.Optional(
+                        CONF_IGNORE_UNREALISTIC_PRICES, default=True
+                    ): BooleanSelector(BooleanSelectorConfig()),
                     vol.Required(
                         CONF_PAYMENT_METHOD, default=PAYMENT_METHOD_LOWEST_FEES
                     ): SelectSelector(
@@ -350,6 +415,10 @@ class KeyforSteamOptionsFlow(config_entries.OptionsFlow):
         current_allow_accounts = options.get(
             CONF_ALLOW_ACCOUNTS, data.get(CONF_ALLOW_ACCOUNTS, False)
         )
+        current_ignore_unrealistic = options.get(
+            CONF_IGNORE_UNREALISTIC_PRICES,
+            data.get(CONF_IGNORE_UNREALISTIC_PRICES, True),
+        )
         current_payment_method = options.get(
             CONF_PAYMENT_METHOD,
             data.get(CONF_PAYMENT_METHOD, PAYMENT_METHOD_LOWEST_FEES),
@@ -376,6 +445,10 @@ class KeyforSteamOptionsFlow(config_entries.OptionsFlow):
                     ),
                     vol.Optional(
                         CONF_ALLOW_ACCOUNTS, default=current_allow_accounts
+                    ): BooleanSelector(BooleanSelectorConfig()),
+                    vol.Optional(
+                        CONF_IGNORE_UNREALISTIC_PRICES,
+                        default=current_ignore_unrealistic,
                     ): BooleanSelector(BooleanSelectorConfig()),
                     vol.Optional(
                         CONF_PAYMENT_METHOD, default=current_payment_method

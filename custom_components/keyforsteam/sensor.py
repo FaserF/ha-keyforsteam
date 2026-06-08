@@ -27,6 +27,7 @@ from .const import (
     CONF_PRODUCT_SLUG,
     CONF_CURRENCY,
     CONF_ALLOW_ACCOUNTS,
+    CONF_IGNORE_UNREALISTIC_PRICES,
     CONF_PAYMENT_METHOD,
     CONF_UPDATE_INTERVAL,
     PAYMENT_METHOD_CARD,
@@ -68,6 +69,10 @@ class KeyforSteamDataUpdateCoordinator(DataUpdateCoordinator):
         # Merge options and data for settings
         self.allow_accounts = entry.options.get(
             CONF_ALLOW_ACCOUNTS, entry.data.get(CONF_ALLOW_ACCOUNTS, False)
+        )
+        self.ignore_unrealistic_prices = entry.options.get(
+            CONF_IGNORE_UNREALISTIC_PRICES,
+            entry.data.get(CONF_IGNORE_UNREALISTIC_PRICES, True),
         )
         self.payment_method = entry.options.get(
             CONF_PAYMENT_METHOD,
@@ -263,8 +268,28 @@ class KeyforSteamDataUpdateCoordinator(DataUpdateCoordinator):
         if not filtered_prices:
             return None
 
+        # Sort filtered_prices by effective_price ascending
+        filtered_prices.sort(key=lambda x: x["effective_price"])
+
+        # Filter out unrealistic prices if option is active
+        if self.ignore_unrealistic_prices:
+            # 1. Filter out prices below 0.80
+            filtered_prices = [
+                p for p in filtered_prices if p["effective_price"] >= 0.80
+            ]
+
+            # 2. Filter out lowest price if difference is 70% or more compared to the second cheapest
+            if len(filtered_prices) >= 2:
+                p1 = filtered_prices[0]["effective_price"]
+                p2 = filtered_prices[1]["effective_price"]
+                if (p2 - p1) / p2 >= 0.70:
+                    filtered_prices.pop(0)
+
+        if not filtered_prices:
+            return None
+
         # Find lowest and highest based on effective price
-        low_price = min(p.get("effective_price", float("inf")) for p in filtered_prices)
+        low_price = filtered_prices[0]["effective_price"]
         high_price = max(p.get("effective_price", 0.0) for p in filtered_prices)
 
         result = {

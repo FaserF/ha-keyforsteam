@@ -31,6 +31,7 @@ CONF_PRODUCT_SLUG = "product_slug"
 CONF_CURRENCY = "currency"
 CONF_PRICE_ALERT_THRESHOLD = "price_alert_threshold"
 CONF_ALLOW_ACCOUNTS = "allow_accounts"
+CONF_IGNORE_UNREALISTIC_PRICES = "ignore_unrealistic_prices"
 CONF_PAYMENT_METHOD = "payment_method"
 CONF_UPDATE_INTERVAL = "update_interval"
 

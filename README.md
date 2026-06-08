@@ -56,7 +56,13 @@ This integration supports all localized versions of the AllKeyShop network. It a
 2. Click **Add Integration**.
 3. Search for **KeyForSteam**.
 4. **Step 1**: Enter the name of the game (e.g., "Grand Theft Auto V").
-5. **Step 2**: Select the correct game from the dropdown and choose your preferred currency.
+5. **Step 2**: Select the correct game from the dropdown, choose your preferred currency, and configure options.
+
+### Ignore Unrealistic Prices 🛡️
+Key reseller websites sometimes contain dummy or placeholder prices (e.g. `0.02€` or preorder deposits). To prevent these from skewing your statistics, the **"Ignore unrealistic prices"** option is enabled by default:
+- **Absolute Floor**: Filters out all price offers below `0.80€` (or equivalent USD/GBP).
+- **Outlier Detection**: Discards the lowest price if it is **70% or more cheaper** than the second cheapest price (indicating a massive drop/outlier).
+- **Configuration**: This can be enabled/disabled during the setup flow or adjusted at any time in the integration's **Configure** (Options Flow) menu.
 
 ---
 

@@ -212,7 +212,12 @@ async def async_update_options(hass: HomeAssistant, entry: ConfigEntry) -> None:
         _LOGGER.debug("Updated coordinator interval to %s hours", new_interval)
 
     # 2. Check for breaking changes that require reload
-    from .const import CONF_CURRENCY, CONF_ALLOW_ACCOUNTS, CONF_PAYMENT_METHOD
+    from .const import (
+        CONF_CURRENCY,
+        CONF_ALLOW_ACCOUNTS,
+        CONF_PAYMENT_METHOD,
+        CONF_IGNORE_UNREALISTIC_PRICES,
+    )
 
     # Compare with current coordinator state
     should_reload = (
@@ -221,6 +226,8 @@ async def async_update_options(hass: HomeAssistant, entry: ConfigEntry) -> None:
         != entry.options.get(CONF_ALLOW_ACCOUNTS, coordinator.allow_accounts)
         or coordinator.payment_method
         != entry.options.get(CONF_PAYMENT_METHOD, coordinator.payment_method)
+        or getattr(coordinator, "ignore_unrealistic_prices", True)
+        != entry.options.get(CONF_IGNORE_UNREALISTIC_PRICES, True)
     )
 
     if should_reload:

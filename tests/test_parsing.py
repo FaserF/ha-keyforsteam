@@ -36,6 +36,10 @@ class KeyforSteamDataUpdateCoordinator:
             "payment_method",
             self.entry.data.get("payment_method", PAYMENT_METHOD_LOWEST_FEES),
         )
+        self.ignore_unrealistic_prices = self.entry.options.get(
+            "ignore_unrealistic_prices",
+            self.entry.data.get("ignore_unrealistic_prices", True),
+        )
 
     def _extract_json_ld(self, html):
         pattern = r'<script[^>]*type=["\']application/ld\+json["\'][^>]*>(.*?)</script>'
@@ -60,7 +64,9 @@ class KeyforSteamDataUpdateCoordinator:
     def _parse_offers(self, product_data, url):
         return {
             "image": product_data.get("image"),
-            "low_price": safe_float(product_data.get("offers", {}).get("lowPrice"), None),
+            "low_price": safe_float(
+                product_data.get("offers", {}).get("lowPrice"), None
+            ),
         }
 
     def _extract_game_page_trans(self, html):
@@ -78,7 +84,9 @@ class KeyforSteamDataUpdateCoordinator:
             if self.payment_method == PAYMENT_METHOD_CARD:
                 price_val = safe_float(p.get("priceCard")) or safe_float(p.get("price"))
             elif self.payment_method == PAYMENT_METHOD_PAYPAL:
-                price_val = safe_float(p.get("pricePaypal")) or safe_float(p.get("price"))
+                price_val = safe_float(p.get("pricePaypal")) or safe_float(
+                    p.get("price")
+                )
             elif self.payment_method == PAYMENT_METHOD_LOWEST_FEES:
                 price_fields = []
                 if p.get("priceCard") is not None:
@@ -89,7 +97,9 @@ class KeyforSteamDataUpdateCoordinator:
                     paypal_price = safe_float(p.get("pricePaypal"))
                     if paypal_price > 0:
                         price_fields.append(paypal_price)
-                price_val = min(price_fields) if price_fields else safe_float(p.get("price"))
+                price_val = (
+                    min(price_fields) if price_fields else safe_float(p.get("price"))
+                )
 
             if price_val <= 0:
                 continue
@@ -99,8 +109,28 @@ class KeyforSteamDataUpdateCoordinator:
 
         if not filtered_prices:
             return None
-        low_price = min(p.get("effective_price", float("inf")) for p in filtered_prices)
-        return {"low_price": low_price}
+
+        # Sort filtered_prices by effective_price ascending
+        filtered_prices.sort(key=lambda x: x["effective_price"])
+
+        # Filter out unrealistic prices if option is active
+        if self.ignore_unrealistic_prices:
+            # 1. Filter out prices below 0.80
+            filtered_prices = [
+                p for p in filtered_prices if p["effective_price"] >= 0.80
+            ]
+
+            # 2. Filter out lowest price if difference is 70% or more compared to the second cheapest
+            if len(filtered_prices) >= 2:
+                p1 = filtered_prices[0]["effective_price"]
+                p2 = filtered_prices[1]["effective_price"]
+                if (p2 - p1) / p2 >= 0.70:
+                    filtered_prices.pop(0)
+
+        if not filtered_prices:
+            return None
+
+        return {"low_price": filtered_prices[0]["effective_price"]}
 
 
 def test_parsing():
@@ -198,3 +228,67 @@ def test_parsing_with_none_values():
     offers_ld = coordinator._parse_offers(product_data, "http://example.com")
 
     assert offers_ld["low_price"] is None
+
+
+def test_unrealistic_prices_filtering():
+    html = """
+    <html>
+    <body>
+        <script type="text/javascript">
+            var gamePageTrans = {
+                "prices": [
+                    {"price": 0.15, "account": false},
+                    {"price": 25.00, "account": false},
+                    {"price": 30.00, "account": false}
+                ]
+            };
+        </script>
+    </body>
+    </html>
+    """
+
+    # Test with ignore_unrealistic_prices = False
+    coordinator_off = KeyforSteamDataUpdateCoordinator(
+        {"ignore_unrealistic_prices": False}
+    )
+    game_data = coordinator_off._extract_game_page_trans(html)
+    offers_js_off = coordinator_off._parse_game_page_trans(
+        game_data, "http://example.com"
+    )
+    # Should find the 0.15 price because the filter is disabled
+    assert abs(offers_js_off["low_price"] - 0.15) < 0.01
+
+    # Test with ignore_unrealistic_prices = True
+    coordinator_on = KeyforSteamDataUpdateCoordinator(
+        {"ignore_unrealistic_prices": True}
+    )
+    offers_js_on = coordinator_on._parse_game_page_trans(
+        game_data, "http://example.com"
+    )
+    # Should ignore 0.15 (both because it is < 0.80 and because the difference to 25.00 is >= 70%)
+    # So it should find 25.00
+    assert abs(offers_js_on["low_price"] - 25.00) < 0.01
+
+    # Test 70% drop ignore condition specifically (e.g. 5.00 and 20.00)
+    # (20.00 - 5.00) / 20.00 = 75% difference. 5.00 is >= 0.80 so it passes the first filter,
+    # but gets ignored due to the 70% drop relative to 20.00.
+    html_drop = """
+    <html>
+    <body>
+        <script type="text/javascript">
+            var gamePageTrans = {
+                "prices": [
+                    {"price": 5.00, "account": false},
+                    {"price": 20.00, "account": false}
+                ]
+            };
+        </script>
+    </body>
+    </html>
+    """
+    game_data_drop = coordinator_on._extract_game_page_trans(html_drop)
+    offers_js_drop = coordinator_on._parse_game_page_trans(
+        game_data_drop, "http://example.com"
+    )
+    # 5.00 is ignored, next cheapest is 20.00
+    assert abs(offers_js_drop["low_price"] - 20.00) < 0.01

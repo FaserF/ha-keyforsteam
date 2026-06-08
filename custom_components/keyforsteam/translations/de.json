@@ -19,6 +19,7 @@
           "game_selection": "Spiel",
           "currency": "Währung",
           "allow_accounts": "Accounts/Logins einbeziehen (oft günstiger, kein Key).",
+          "ignore_unrealistic_prices": "Unrealistische Preise ignorieren (ignoriere <0.80€ oder >70% Preisabfall)",
           "payment_method": "Zahlungsmethode (Preisvergleich)"
         }
       }
@@ -53,6 +54,7 @@
           "price_alert_threshold": "Preisalarm-Schwellenwert",
           "currency": "Währung",
           "allow_accounts": "Accounts/Logins einbeziehen",
+          "ignore_unrealistic_prices": "Unrealistische Preise ignorieren",
           "payment_method": "Zahlungsmethode",
           "update_interval": "Update-Intervall (Stunden)"
         },
