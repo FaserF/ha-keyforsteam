@@ -15,7 +15,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.device_registry import DeviceEntryType
-import async_timeout
+import asyncio
 import aiohttp
 
 from .const import (
@@ -408,7 +408,7 @@ class KeyforSteamDataUpdateCoordinator(DataUpdateCoordinator):
         }
 
         async with aiohttp.ClientSession() as session:
-            async with async_timeout.timeout(30):
+            async with asyncio.timeout(30):
                 try:
                     async with session.get(url, headers=headers) as response:
                         if response.status == 404:

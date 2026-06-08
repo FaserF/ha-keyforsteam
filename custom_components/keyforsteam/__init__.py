@@ -29,7 +29,7 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     from homeassistant.helpers.aiohttp_client import async_get_clientsession
     from .const import GAMES_CATALOG_URL
     import voluptuous as vol
-    import async_timeout
+    import asyncio
     import re
     import json
 
@@ -41,7 +41,7 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
         session = async_get_clientsession(hass)
 
         try:
-            async with async_timeout.timeout(10):
+            async with asyncio.timeout(10):
                 async with session.get(GAMES_CATALOG_URL) as response:
                     if response.status != 200:
                         return {"error": "Failed to fetch catalog"}
@@ -87,7 +87,7 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         }
         try:
-            async with async_timeout.timeout(15):
+            async with asyncio.timeout(15):
                 async with session.get(url, headers=headers) as response:
                     if response.status != 200:
                         return {

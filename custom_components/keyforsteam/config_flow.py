@@ -3,7 +3,7 @@
 import logging
 import re
 import aiohttp
-import async_timeout
+import asyncio
 import voluptuous as vol
 
 from homeassistant import config_entries
@@ -76,7 +76,7 @@ class KeyforSteamConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: 
 
         try:
             async with aiohttp.ClientSession() as session:
-                async with async_timeout.timeout(30):
+                async with asyncio.timeout(30):
                     async with session.get(GAMES_CATALOG_URL) as response:
                         if response.status == 200:
                             data = await response.json()
@@ -167,7 +167,7 @@ class KeyforSteamConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: 
 
         try:
             async with aiohttp.ClientSession() as session:
-                async with async_timeout.timeout(15):
+                async with asyncio.timeout(15):
                     async with session.get(url, headers=headers) as response:
                         if response.status != 200:
                             return False
