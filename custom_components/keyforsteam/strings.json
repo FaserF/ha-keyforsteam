@@ -19,6 +19,7 @@
           "game_selection": "Game",
           "currency": "Currency",
           "allow_accounts": "Include Accounts/Logins (often cheaper, not a key)",
+          "ignore_unrealistic_prices": "Ignore unrealistic prices (ignore <0.80€ or >70% price drops)",
           "payment_method": "Payment Method (price comparison)"
         }
       }
@@ -53,6 +54,7 @@
           "price_alert_threshold": "Price Alert Threshold",
           "currency": "Currency",
           "allow_accounts": "Include Accounts/Logins",
+          "ignore_unrealistic_prices": "Ignore unrealistic prices",
           "payment_method": "Payment Method",
           "update_interval": "Update Interval (hours)"
         },
@@ -105,11 +107,6 @@
             "name": "Price Difference"
           }
         }
-      }
-    },
-    "calendar": {
-      "release_calendar": {
-        "name": "Release Calendar"
       }
     },
     "number": {

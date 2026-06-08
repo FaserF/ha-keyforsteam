@@ -17,7 +17,6 @@ PLATFORMS = [
     "button",
     "image",
     "event",
-    "calendar",
     "number",
 ]
 
@@ -164,7 +163,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.data[DOMAIN][entry.entry_id] = {"coordinator": coordinator}
 
     # Determine which platforms to load
-    platforms_to_load = ["sensor", "image", "button", "event", "calendar", "number"]
+    platforms_to_load = ["sensor", "image", "button", "event", "number"]
 
     # Only load binary_sensor if price alert threshold is configured
     threshold = entry.options.get(
@@ -243,7 +242,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     _LOGGER.debug("Unloading KeyforSteam entry with entry_id: %s", entry.entry_id)
 
     # Determine which platforms were loaded
-    platforms_to_unload = ["sensor", "image", "button", "event", "calendar", "number"]
+    platforms_to_unload = ["sensor", "image", "button", "event", "number"]
     threshold = entry.options.get(
         CONF_PRICE_ALERT_THRESHOLD, DEFAULT_PRICE_ALERT_THRESHOLD
     )

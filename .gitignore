@@ -6,3 +6,4 @@ github_conf/
 /custom_components/__pycache__
 .coverage
 config_entry-*.json
+/scratch

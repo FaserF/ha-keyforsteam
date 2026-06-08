@@ -109,11 +109,6 @@
         }
       }
     },
-    "calendar": {
-      "release_calendar": {
-        "name": "Release-Kalender"
-      }
-    },
     "number": {
       "budget_limit": {
         "name": "Budget-Limit"
