@@ -6,8 +6,10 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import DeviceInfo
+from homeassistant.helpers.device_registry import DeviceEntryType
 
 from .const import DOMAIN
+from .sensor import KeyforSteamDataUpdateCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -28,7 +30,9 @@ class KeyforSteamUpdateButton(ButtonEntity):
     _attr_translation_key = "update_button"
     _attr_entity_registry_enabled_default = False
 
-    def __init__(self, coordinator, entry: ConfigEntry):
+    def __init__(
+        self, coordinator: KeyforSteamDataUpdateCoordinator, entry: ConfigEntry
+    ):
         """Initialize the button."""
         self._coordinator = coordinator
         self._entry = entry
@@ -50,8 +54,10 @@ class KeyforSteamUpdateButton(ButtonEntity):
             or f"Game {self._coordinator.product_id}",
             manufacturer="AllKeyShop",
             model="Game Price Tracker",
-            entry_type="service",
-            configuration_url=self._coordinator.data.get("product_url")
-            if self._coordinator.data
-            else None,
+            entry_type=DeviceEntryType.SERVICE,
+            configuration_url=(
+                self._coordinator.data.get("product_url")
+                if self._coordinator.data
+                else None
+            ),
         )

@@ -112,13 +112,19 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
                 price_val = p.get("price", 0)
                 if p.get("priceCard"):
                     price_val = p.get("priceCard")
+
+                try:
+                    price_float = float(price_val) if price_val is not None else 0.0
+                except (TypeError, ValueError):
+                    price_float = 0.0
+
                 merchant_name = p.get("merchantName") or merchants.get(
                     str(p.get("merchant")), {}
                 ).get("name", "Unknown")
                 offers.append(
                     {
                         "seller": merchant_name,
-                        "price": float(price_val),
+                        "price": price_float,
                         "currency": "EUR",
                         "is_account": p.get("account", False),
                     }

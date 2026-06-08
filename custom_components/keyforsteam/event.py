@@ -6,9 +6,11 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity import DeviceInfo
+from homeassistant.helpers.device_registry import DeviceEntryType
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN
+from .sensor import KeyforSteamDataUpdateCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -23,14 +25,18 @@ async def async_setup_entry(
     async_add_entities([KeyforSteamPriceDropEvent(coordinator, entry)])
 
 
-class KeyforSteamPriceDropEvent(CoordinatorEntity, EventEntity):
+class KeyforSteamPriceDropEvent(
+    CoordinatorEntity[KeyforSteamDataUpdateCoordinator], EventEntity
+):
     """Representation of a KeyforSteam price drop event."""
 
     _attr_event_types = ["price_drop"]
     _attr_translation_key = "price_drop_event"
     _attr_has_entity_name = True
 
-    def __init__(self, coordinator, entry: ConfigEntry):
+    def __init__(
+        self, coordinator: KeyforSteamDataUpdateCoordinator, entry: ConfigEntry
+    ):
         """Initialize the event entity."""
         super().__init__(coordinator)
         self._entry = entry
@@ -51,7 +57,7 @@ class KeyforSteamPriceDropEvent(CoordinatorEntity, EventEntity):
             name=self.coordinator.product_name or f"Game {self.coordinator.product_id}",
             manufacturer="AllKeyShop",
             model="Game Price Tracker",
-            entry_type="service",
+            entry_type=DeviceEntryType.SERVICE,
             configuration_url=data.get("product_url"),
         )
 

@@ -6,6 +6,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import DeviceInfo
+from homeassistant.helpers.device_registry import DeviceEntryType
 
 from .const import DOMAIN
 
@@ -58,10 +59,12 @@ class KeyforSteamBudgetNumber(RestoreNumber):
             name=self.coordinator.product_name or f"Game {self.coordinator.product_id}",
             manufacturer="AllKeyShop",
             model="Game Price Tracker",
-            entry_type="service",
-            configuration_url=self.coordinator.data.get("product_url")
-            if self.coordinator.data
-            else None,
+            entry_type=DeviceEntryType.SERVICE,
+            configuration_url=(
+                self.coordinator.data.get("product_url")
+                if self.coordinator.data
+                else None
+            ),
         )
 
     async def async_added_to_hass(self) -> None:

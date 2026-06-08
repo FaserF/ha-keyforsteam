@@ -70,6 +70,7 @@ async def test_async_step_select(flow):
     with (
         patch.object(flow, "async_set_unique_id", AsyncMock()),
         patch.object(flow, "_abort_if_unique_id_configured", MagicMock()),
+        patch.object(flow, "_check_game_has_prices", AsyncMock(return_value=True)),
     ):
         result = await flow.async_step_select(
             user_input={
@@ -81,6 +82,41 @@ async def test_async_step_select(flow):
         )
         assert result["type"] == "create_entry"
         assert result["title"] == "Test Game"
+
+
+@pytest.mark.asyncio
+async def test_async_step_select_no_prices_warning(flow):
+    """Test the select step warning and confirmation when no prices are found."""
+    flow._search_results = [{"id": 1, "name": "Test Game"}]
+
+    with (
+        patch.object(flow, "async_set_unique_id", AsyncMock()),
+        patch.object(flow, "_abort_if_unique_id_configured", MagicMock()),
+        patch.object(flow, "_check_game_has_prices", AsyncMock(return_value=False)),
+    ):
+        # First submission: should return form with error warning
+        result = await flow.async_step_select(
+            user_input={
+                "game_selection": "1",
+                "currency": "eur",
+                "allow_accounts": False,
+                "payment_method": "lowest_fees",
+            }
+        )
+        assert result["type"] == "form"
+        assert result["errors"]["base"] == "no_prices_warning"
+
+        # Second submission: should bypass and create entry successfully
+        result2 = await flow.async_step_select(
+            user_input={
+                "game_selection": "1",
+                "currency": "eur",
+                "allow_accounts": False,
+                "payment_method": "lowest_fees",
+            }
+        )
+        assert result2["type"] == "create_entry"
+        assert result2["title"] == "Test Game"
 
 
 @pytest.mark.asyncio

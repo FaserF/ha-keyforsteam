@@ -6,8 +6,10 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import DeviceInfo
+from homeassistant.helpers.device_registry import DeviceEntryType
 
 from .const import DOMAIN
+from .sensor import KeyforSteamDataUpdateCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -29,7 +31,12 @@ class KeyforSteamGameImage(ImageEntity):
     _attr_entity_registry_enabled_default = False
     _attr_has_entity_name = True
 
-    def __init__(self, hass: HomeAssistant, coordinator, entry: ConfigEntry):
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        coordinator: KeyforSteamDataUpdateCoordinator,
+        entry: ConfigEntry,
+    ):
         """Initialize the image entity."""
         super().__init__(hass)
         self.coordinator = coordinator
@@ -67,10 +74,12 @@ class KeyforSteamGameImage(ImageEntity):
             name=self.coordinator.product_name or f"Game {self.coordinator.product_id}",
             manufacturer="AllKeyShop",
             model="Game Price Tracker",
-            entry_type="service",
-            configuration_url=self.coordinator.data.get("product_url")
-            if self.coordinator.data
-            else None,
+            entry_type=DeviceEntryType.SERVICE,
+            configuration_url=(
+                self.coordinator.data.get("product_url")
+                if self.coordinator.data
+                else None
+            ),
         )
 
     async def async_added_to_hass(self):

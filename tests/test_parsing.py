@@ -14,6 +14,16 @@ class MockConfigEntry:
         self.options = options
 
 
+def safe_float(value, default=0.0) -> float:
+    """Safely convert a value to float, handling None, string, etc."""
+    if value is None:
+        return default
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
 class KeyforSteamDataUpdateCoordinator:
     def __init__(self, data, options={}):
         self.entry = MockConfigEntry(data, options)
@@ -50,7 +60,7 @@ class KeyforSteamDataUpdateCoordinator:
     def _parse_offers(self, product_data, url):
         return {
             "image": product_data.get("image"),
-            "low_price": product_data.get("offers", {}).get("lowPrice"),
+            "low_price": safe_float(product_data.get("offers", {}).get("lowPrice"), None),
         }
 
     def _extract_game_page_trans(self, html):
@@ -64,19 +74,25 @@ class KeyforSteamDataUpdateCoordinator:
             if not self.allow_accounts and p.get("account"):
                 continue
 
-            price_val = p.get("price", 0)
+            price_val = safe_float(p.get("price"))
             if self.payment_method == PAYMENT_METHOD_CARD:
-                price_val = p.get("priceCard") or p.get("price", 0)
+                price_val = safe_float(p.get("priceCard")) or safe_float(p.get("price"))
             elif self.payment_method == PAYMENT_METHOD_PAYPAL:
-                price_val = p.get("pricePaypal") or p.get("price", 0)
+                price_val = safe_float(p.get("pricePaypal")) or safe_float(p.get("price"))
             elif self.payment_method == PAYMENT_METHOD_LOWEST_FEES:
                 price_fields = []
-                if p.get("priceCard"):
-                    price_fields.append(p.get("priceCard"))
-                if p.get("pricePaypal"):
-                    price_fields.append(p.get("pricePaypal"))
-                price_val = min(price_fields) if price_fields else p.get("price", 0)
+                if p.get("priceCard") is not None:
+                    card_price = safe_float(p.get("priceCard"))
+                    if card_price > 0:
+                        price_fields.append(card_price)
+                if p.get("pricePaypal") is not None:
+                    paypal_price = safe_float(p.get("pricePaypal"))
+                    if paypal_price > 0:
+                        price_fields.append(paypal_price)
+                price_val = min(price_fields) if price_fields else safe_float(p.get("price"))
 
+            if price_val <= 0:
+                continue
             entry = dict(p)
             entry["effective_price"] = price_val
             filtered_prices.append(entry)
@@ -126,22 +142,59 @@ def test_parsing():
     game_data = coordinator._extract_game_page_trans(html)
     offers_js = coordinator._parse_game_page_trans(game_data, "http://example.com")
 
-    print(f"Lowest Price (Lowest Fees): {offers_js['low_price']}")
-    if abs(offers_js["low_price"] - 52.94) < 0.01:
-        print("SUCCESS: Got 52.94 as expected!")
-    else:
-        print(f"FAILED: Expected 52.94, got {offers_js['low_price']}")
-        exit(1)
+    assert abs(offers_js["low_price"] - 52.94) < 0.01
 
     # Test JSON-LD parsing (for image)
     product_data = coordinator._extract_json_ld(html)
     offers_ld = coordinator._parse_offers(product_data, "http://example.com")
 
-    print(f"Extracted Image URL: {offers_ld['image']}")
-    if offers_ld["image"] == "https://example.com/test_game.jpg":
-        print("SUCCESS: Got correct image URL!")
-    else:
-        print(
-            f"FAILED: Expected https://example.com/test_game.jpg, got {offers_ld['image']}"
-        )
-        exit(1)
+    assert offers_ld["image"] == "https://example.com/test_game.jpg"
+
+
+def test_parsing_with_none_values():
+    html = """
+    <html>
+    <head>
+        <script type="application/ld+json">
+        {
+            "@context": "https://schema.org/",
+            "@type": "Product",
+            "name": "Test Game",
+            "image": "https://example.com/test_game.jpg",
+            "offers": {
+                "@type": "AggregateOffer",
+                "lowPrice": null,
+                "priceCurrency": "EUR"
+            }
+        }
+        </script>
+    </head>
+    <body>
+        <script type="text/javascript">
+            var gamePageTrans = {
+                "prices": [
+                    {"price": null, "priceCard": null, "pricePaypal": null, "account": false},
+                    {"price": 50.00, "priceCard": 48.00, "pricePaypal": 47.00, "account": false}
+                ]
+            };
+        </script>
+    </body>
+    </html>
+    """
+
+    coordinator = KeyforSteamDataUpdateCoordinator(
+        {"allow_accounts": False, "payment_method": PAYMENT_METHOD_LOWEST_FEES}
+    )
+
+    # Test gamePageTrans parsing with None values (which caused the float() TypeError)
+    game_data = coordinator._extract_game_page_trans(html)
+    offers_js = coordinator._parse_game_page_trans(game_data, "http://example.com")
+
+    # Should successfully parse 47.00 since the first offer's prices are None
+    assert abs(offers_js["low_price"] - 47.00) < 0.01
+
+    # Test JSON-LD parsing with null lowPrice
+    product_data = coordinator._extract_json_ld(html)
+    offers_ld = coordinator._parse_offers(product_data, "http://example.com")
+
+    assert offers_ld["low_price"] is None

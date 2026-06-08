@@ -53,6 +53,7 @@ class KeyforSteamConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: 
         self._games_cache = None
         self._selected_game = None
         self._search_results = []
+        self._price_checked = None
 
     async def _fetch_games_catalog(self):
         """Fetch games catalog from AllKeyShop API."""
@@ -130,6 +131,51 @@ class KeyforSteamConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: 
         slug = slug.strip("-")
         return slug
 
+    async def _check_game_has_prices(self, slug: str, currency: str) -> bool:
+        """Check if the game has any active price listings."""
+        if currency == "eur":
+            url = f"https://www.keyforsteam.de/{slug}-key-kaufen"
+        else:
+            url = f"https://www.allkeyshop.com/blog/buy-{slug}-cd-key-compare-prices"
+
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Accept-Language": "de-DE,de;q=0.9,en-US;q=0.8,en;q=0.7",
+        }
+
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with async_timeout.timeout(15):
+                    async with session.get(url, headers=headers) as response:
+                        if response.status != 200:
+                            return False
+                        html = await response.text()
+
+                        # Use regex to find gamePageTrans
+                        match = re.search(
+                            r"var gamePageTrans\s*=\s*(\{.*?\});", html, re.DOTALL
+                        )
+                        if match:
+                            import json
+
+                            game_data = json.loads(match.group(1))
+                            prices = game_data.get("prices", [])
+                            # Check if any price is greater than 0
+                            for p in prices:
+                                # We can check price, priceCard, or pricePaypal
+                                for key in ["price", "priceCard", "pricePaypal"]:
+                                    val = p.get(key)
+                                    if val is not None:
+                                        try:
+                                            if float(val) > 0:
+                                                return True
+                                        except (ValueError, TypeError):
+                                            pass
+        except Exception as e:
+            _LOGGER.error("Error checking game prices in config flow: %s", e)
+        return False
+
     async def async_step_user(self, user_input=None):
         """Handle the initial step - game search."""
         errors = {}
@@ -197,17 +243,25 @@ class KeyforSteamConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: 
                 await self.async_set_unique_id(f"keyforsteam_{game_id}")
                 self._abort_if_unique_id_configured()
 
-                return self.async_create_entry(
-                    title=game_name,
-                    data={
-                        CONF_PRODUCT_ID: str(game_id),
-                        CONF_PRODUCT_NAME: game_name,
-                        CONF_PRODUCT_SLUG: game_slug,
-                        CONF_CURRENCY: currency,
-                        CONF_ALLOW_ACCOUNTS: allow_accounts,
-                        CONF_PAYMENT_METHOD: payment_method,
-                    },
-                )
+                # Check if we need to show the price warning
+                if getattr(self, "_price_checked", None) != game_id:
+                    has_prices = await self._check_game_has_prices(game_slug, currency)
+                    if not has_prices:
+                        self._price_checked = game_id
+                        errors["base"] = "no_prices_warning"
+
+                if not errors:
+                    return self.async_create_entry(
+                        title=game_name,
+                        data={
+                            CONF_PRODUCT_ID: str(game_id),
+                            CONF_PRODUCT_NAME: game_name,
+                            CONF_PRODUCT_SLUG: game_slug,
+                            CONF_CURRENCY: currency,
+                            CONF_ALLOW_ACCOUNTS: allow_accounts,
+                            CONF_PAYMENT_METHOD: payment_method,
+                        },
+                    )
             else:
                 errors["game_selection"] = "invalid_selection"
 

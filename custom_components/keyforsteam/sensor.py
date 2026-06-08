@@ -14,6 +14,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import DeviceInfo
+from homeassistant.helpers.device_registry import DeviceEntryType
 import async_timeout
 import aiohttp
 
@@ -41,6 +42,16 @@ from .const import (
 _LOGGER = logging.getLogger(__name__)
 
 UPDATE_INTERVAL = timedelta(hours=UPDATE_INTERVAL_HOURS)
+
+
+def safe_float(value, default=0.0) -> float:
+    """Safely convert a value to float, handling None, string, etc."""
+    if value is None:
+        return default
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
 
 
 class KeyforSteamDataUpdateCoordinator(DataUpdateCoordinator):
@@ -135,7 +146,9 @@ class KeyforSteamDataUpdateCoordinator(DataUpdateCoordinator):
 
     def _parse_offers(self, product_data, url):
         """Parse offers from Product JSON-LD schema."""
-        offers_data = product_data.get("offers", {})
+        offers_data = product_data.get("offers")
+        if not isinstance(offers_data, dict):
+            offers_data = {}
 
         result = {
             "product_id": product_data.get("@id") or self.product_id,
@@ -152,24 +165,16 @@ class KeyforSteamDataUpdateCoordinator(DataUpdateCoordinator):
             "release_date": product_data.get("releaseDate"),
         }
 
-        rating_data = product_data.get("aggregateRating", {})
-        if rating_data:
+        rating_data = product_data.get("aggregateRating")
+        if isinstance(rating_data, dict):
             result["rating"] = {
                 "value": rating_data.get("ratingValue"),
-                "count": rating_data.get("ratingCount"),
+                "count": rating_data.get("count") or rating_data.get("ratingCount"),
             }
 
         if offers_data.get("@type") == "AggregateOffer":
-            try:
-                result["low_price"] = float(offers_data.get("lowPrice", 0))
-            except (TypeError, ValueError):
-                result["low_price"] = None
-
-            try:
-                result["high_price"] = float(offers_data.get("highPrice", 0))
-            except (TypeError, ValueError):
-                result["high_price"] = None
-
+            result["low_price"] = safe_float(offers_data.get("lowPrice"), None)
+            result["high_price"] = safe_float(offers_data.get("highPrice"), None)
             result["currency"] = offers_data.get("priceCurrency", "EUR")
             result["offer_count"] = offers_data.get("offerCount", 0)
 
@@ -179,7 +184,7 @@ class KeyforSteamDataUpdateCoordinator(DataUpdateCoordinator):
                     seller = offer.get("seller", {})
                     result["offers"].append(
                         {
-                            "price": float(offer.get("price", 0)),
+                            "price": safe_float(offer.get("price")),
                             "currency": offer.get("priceCurrency", "EUR"),
                             "seller": (
                                 seller.get("name")
@@ -210,7 +215,11 @@ class KeyforSteamDataUpdateCoordinator(DataUpdateCoordinator):
 
     def _parse_game_page_trans(self, game_data, url):
         """Parse offers from gamePageTrans JS object."""
-        prices = game_data.get("prices", [])
+        if not isinstance(game_data, dict):
+            return None
+        prices = game_data.get("prices")
+        if not isinstance(prices, list):
+            prices = []
 
         # Filter and map based on settings
         filtered_prices = []
@@ -219,27 +228,34 @@ class KeyforSteamDataUpdateCoordinator(DataUpdateCoordinator):
             if not self.allow_accounts and is_account:
                 continue
 
-            # Select price based on payment method
-            price_val = p.get("price", 0)
+            # Select price based on payment method safely
+            price_val = safe_float(p.get("price"))
             if self.payment_method == PAYMENT_METHOD_CARD:
-                price_val = p.get("priceCard") or p.get("price", 0)
+                price_val = safe_float(p.get("priceCard")) or safe_float(p.get("price"))
             elif self.payment_method == PAYMENT_METHOD_PAYPAL:
-                price_val = p.get("pricePaypal") or p.get("price", 0)
+                price_val = safe_float(p.get("pricePaypal")) or safe_float(
+                    p.get("price")
+                )
             elif self.payment_method == PAYMENT_METHOD_LOWEST_FEES:
-                # Find the absolute minimum across fee-inclusive fields.
-                # Base 'price' often excludes mandatory fees, so we prioritize card/paypal.
+                # Find the absolute minimum across fee-inclusive fields safely.
                 price_fields = []
-                if p.get("priceCard"):
-                    price_fields.append(p.get("priceCard"))
-                if p.get("pricePaypal"):
-                    price_fields.append(p.get("pricePaypal"))
+                if p.get("priceCard") is not None:
+                    card_price = safe_float(p.get("priceCard"))
+                    if card_price > 0:
+                        price_fields.append(card_price)
+                if p.get("pricePaypal") is not None:
+                    paypal_price = safe_float(p.get("pricePaypal"))
+                    if paypal_price > 0:
+                        price_fields.append(paypal_price)
 
                 if price_fields:
                     price_val = min(price_fields)
                 else:
-                    price_val = p.get("price", 0)
+                    price_val = safe_float(p.get("price"))
 
             # Create a copy with the selected price as 'effective_price'
+            if price_val <= 0:
+                continue
             entry = dict(p)
             entry["effective_price"] = price_val
             filtered_prices.append(entry)
@@ -249,7 +265,7 @@ class KeyforSteamDataUpdateCoordinator(DataUpdateCoordinator):
 
         # Find lowest and highest based on effective price
         low_price = min(p.get("effective_price", float("inf")) for p in filtered_prices)
-        high_price = max(p.get("effective_price", 0) for p in filtered_prices)
+        high_price = max(p.get("effective_price", 0.0) for p in filtered_prices)
 
         result = {
             "product_id": self.product_id,
@@ -266,16 +282,16 @@ class KeyforSteamDataUpdateCoordinator(DataUpdateCoordinator):
         }
 
         # Handle rating if available in merchants
-        merchants = game_data.get("merchants", {})
-        if merchants:
-            pass
+        merchants = game_data.get("merchants")
+        if not isinstance(merchants, dict):
+            merchants = {}
 
         for p in filtered_prices:
             merchant_id = str(p.get("merchant"))
             merchant_info = merchants.get(merchant_id, {})
             result["offers"].append(
                 {
-                    "price": float(p.get("effective_price", 0)),
+                    "price": safe_float(p.get("effective_price")),
                     "currency": self.currency.upper(),
                     "seller": p.get("merchantName") or merchant_info.get("name"),
                     "availability": "InStock" if p.get("dispo") == 1 else "Unknown",
@@ -503,10 +519,12 @@ class KeyforSteamBaseEntity(SensorEntity):
             or f"Game {self._coordinator.product_id}",
             manufacturer="AllKeyShop",
             model="Game Price Tracker",
-            entry_type="service",
-            configuration_url=self._coordinator.data.get("product_url")
-            if self._coordinator.data
-            else None,
+            entry_type=DeviceEntryType.SERVICE,
+            configuration_url=(
+                self._coordinator.data.get("product_url")
+                if self._coordinator.data
+                else None
+            ),
         )
 
     async def async_added_to_hass(self):

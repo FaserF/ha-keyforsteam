@@ -7,10 +7,12 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import DeviceInfo
+from homeassistant.helpers.device_registry import DeviceEntryType
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 import homeassistant.util.dt as dt_util
 
 from .const import DOMAIN
+from .sensor import KeyforSteamDataUpdateCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -27,14 +29,18 @@ async def async_setup_entry(
     async_add_entities([KeyforSteamReleaseCalendar(coordinator, entry)])
 
 
-class KeyforSteamReleaseCalendar(CoordinatorEntity, CalendarEntity):
+class KeyforSteamReleaseCalendar(
+    CoordinatorEntity[KeyforSteamDataUpdateCoordinator], CalendarEntity
+):
     """Representation of a KeyforSteam release date calendar."""
 
     _attr_translation_key = "release_calendar"
     _attr_entity_registry_enabled_default = False
     _attr_has_entity_name = True
 
-    def __init__(self, coordinator, entry: ConfigEntry):
+    def __init__(
+        self, coordinator: KeyforSteamDataUpdateCoordinator, entry: ConfigEntry
+    ):
         """Initialize the calendar entity."""
         super().__init__(coordinator)
         self._entry = entry
@@ -48,10 +54,12 @@ class KeyforSteamReleaseCalendar(CoordinatorEntity, CalendarEntity):
             name=self.coordinator.product_name or f"Game {self.coordinator.product_id}",
             manufacturer="AllKeyShop",
             model="Game Price Tracker",
-            entry_type="service",
-            configuration_url=self.coordinator.data.get("product_url")
-            if self.coordinator.data
-            else None,
+            entry_type=DeviceEntryType.SERVICE,
+            configuration_url=(
+                self.coordinator.data.get("product_url")
+                if self.coordinator.data
+                else None
+            ),
         )
 
     @property

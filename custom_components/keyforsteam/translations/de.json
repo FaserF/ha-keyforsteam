@@ -27,7 +27,8 @@
       "no_games_found": "Keine Spiele gefunden, die deiner Suche entsprechen. Bitte versuche es mit einem anderen Suchbegriff.",
       "invalid_selection": "Ungültige Spielauswahl. Bitte versuche es erneut.",
       "required": "Dieses Feld ist erforderlich.",
-      "cannot_connect": "Verbindung zum Preisverfolgungsdienst nicht möglich."
+      "cannot_connect": "Verbindung zum Preisverfolgungsdienst nicht möglich.",
+      "no_prices_warning": "Achtung: Für dieses Spiel wurden keine Preise gefunden (z.B. weil es noch nicht erschienen oder ausverkauft ist). Bis Preise verfügbar sind, wird 0,00€ verwendet. Klicke erneut auf Absenden, um fortzufahren."
     },
     "abort": {
       "already_configured": "Dieses Spiel ist bereits konfiguriert."
