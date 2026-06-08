@@ -38,6 +38,8 @@ from .const import (
     PAYMENT_METHOD_LOWEST_FEES,
     DEFAULT_CURRENCY,
     UPDATE_INTERVAL_HOURS,
+    KEYFORSTEAM_PRODUCT_URL,
+    ALLKEYSHOP_PRODUCT_URL,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -134,9 +136,9 @@ class KeyforSteamConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: 
     async def _check_game_has_prices(self, slug: str, currency: str) -> bool:
         """Check if the game has any active price listings."""
         if currency == "eur":
-            url = f"https://www.keyforsteam.de/{slug}-key-kaufen"
+            url = KEYFORSTEAM_PRODUCT_URL.format(slug=slug)
         else:
-            url = f"https://www.allkeyshop.com/blog/buy-{slug}-cd-key-compare-prices"
+            url = ALLKEYSHOP_PRODUCT_URL.format(slug=slug)
 
         headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",

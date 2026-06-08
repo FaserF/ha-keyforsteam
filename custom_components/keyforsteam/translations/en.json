@@ -28,7 +28,7 @@
       "invalid_selection": "Invalid game selection. Please try again.",
       "required": "This field is required.",
       "cannot_connect": "Unable to connect to the price tracking service.",
-      "no_prices_warning": "Warning: No prices found for this game. It might be unreleased or out of stock. 0.00€ will be used until prices are available. Click submit again to proceed."
+      "no_prices_warning": "Warning: No prices found for this game. It might be unreleased or out of stock. 0.00€ will be used until prices are available. **Click submit again to proceed.**"
     },
     "abort": {
       "already_configured": "This game is already configured."
