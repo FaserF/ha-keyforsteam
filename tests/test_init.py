@@ -1,15 +1,17 @@
 import pytest
 from unittest.mock import patch, AsyncMock, MagicMock
-from custom_components.keyforsteam import (
-    async_setup,
-    async_setup_entry,
-    async_update_options,
-    async_unload_entry,
-)
+with patch("homeassistant.helpers.frame.report_usage"):
+    from custom_components.keyforsteam import (
+        async_setup,
+        async_setup_entry,
+        async_update_options,
+        async_unload_entry,
+    )
 from custom_components.keyforsteam.const import DOMAIN
 
 from aioresponses import aioresponses
 from custom_components.keyforsteam.const import GAMES_CATALOG_URL
+import aiohttp
 
 
 @pytest.mark.asyncio
@@ -38,9 +40,18 @@ async def test_async_setup(mock_hass):
         call_mock = MagicMock()
         call_mock.data = {"game_name": "Test Game"}
 
-        response = await service_func(call_mock)
-        assert response["game_name"] == "Test Game"
-        assert response["best_price"] == 10.0
+        # Since the module is dynamically imported inside the target function, we patch the target function's
+        # module globals or simply patch the import target module before running
+        import homeassistant.helpers.aiohttp_client as aiohttp_client
+        with patch.object(aiohttp_client, "async_get_clientsession") as mock_get_session:
+            session = aiohttp.ClientSession()
+            mock_get_session.return_value = session
+            try:
+                response = await service_func(call_mock)
+                assert response["game_name"] == "Test Game"
+                assert response["best_price"] == 10.0
+            finally:
+                await session.close()
 
 
 @pytest.mark.asyncio
@@ -69,16 +80,29 @@ async def test_async_update_options(mock_hass, mock_config_entry):
     coordinator.currency = "eur"
     coordinator.allow_accounts = False
     coordinator.payment_method = "lowest_fees"
+    coordinator.ignore_unrealistic_prices = True
     coordinator.update_interval_hours = 1
     mock_hass.data[DOMAIN] = {mock_config_entry.entry_id: {"coordinator": coordinator}}
 
-    # Test threshold change (no reload)
-    mock_config_entry.options = {"price_alert_threshold": 50.0}
+    # Set default options so we don't trigger reload when we only change threshold
+    mock_config_entry.options = {
+        "price_alert_threshold": 50.0,
+        "currency": "eur",
+        "allow_accounts": False,
+        "payment_method": "lowest_fees",
+        "ignore_unrealistic_prices": True,
+    }
     await async_update_options(mock_hass, mock_config_entry)
     assert mock_hass.config_entries.async_reload.call_count == 0
 
     # Test core setting change (reload)
-    mock_config_entry.options = {"currency": "usd"}
+    mock_config_entry.options = {
+        "price_alert_threshold": 50.0,
+        "currency": "usd",
+        "allow_accounts": False,
+        "payment_method": "lowest_fees",
+        "ignore_unrealistic_prices": True,
+    }
     await async_update_options(mock_hass, mock_config_entry)
     mock_hass.config_entries.async_reload.assert_called_once_with(
         mock_config_entry.entry_id

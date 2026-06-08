@@ -26,7 +26,7 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     _LOGGER.debug("KeyforSteam integration setup called.")
 
     from homeassistant.core import ServiceResponse, SupportsResponse
-    from homeassistant.helpers.aiohttp_client import async_get_clientsession
+    from homeassistant.helpers import aiohttp_client
     from .const import GAMES_CATALOG_URL
     import voluptuous as vol
     import asyncio
@@ -38,7 +38,7 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
         if not game_name:
             raise vol.Invalid("game_name is required")
 
-        session = async_get_clientsession(hass)
+        session = aiohttp_client.async_get_clientsession(hass)
 
         try:
             async with asyncio.timeout(10):

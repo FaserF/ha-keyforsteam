@@ -6,7 +6,7 @@ from homeassistant.core import HomeAssistant
 @pytest.fixture
 def mock_hass():
     hass = MagicMock(spec=HomeAssistant)
-    hass.data = {}
+    hass.data = {"network": MagicMock()}
     hass.services = MagicMock()
     hass.services.async_register = MagicMock()
     hass.bus = MagicMock()
