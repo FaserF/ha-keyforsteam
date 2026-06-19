@@ -1,7 +1,9 @@
 {
-    "name": "Keyforsteam",
-    "render_readme": true,
-    "country": [
-        "DE"
-    ]
+  "name": "Keyforsteam",
+  "render_readme": true,
+  "country": [
+    "DE"
+  ],
+  "zip_release": true,
+  "filename": "keyforsteam.zip"
 }
