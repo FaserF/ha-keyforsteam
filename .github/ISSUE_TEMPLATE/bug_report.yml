@@ -1,9 +1,5 @@
 name: Report an issue
-description: Report an issue with the keyforsteam Integration
-title: "[Bug]: "
-labels: ["bug"]
-assignees:
-  - FaserF
+description: Report an issue with the unofficial keyforsteam Integration
 body:
   - type: markdown
     attributes:
@@ -34,6 +30,15 @@ body:
         Can be found in: [Settings -> About](https://my.home-assistant.io/redirect/info/).
 
         [![Open your Home Assistant instance and show your Home Assistant version information.](https://my.home-assistant.io/badges/info.svg)](https://my.home-assistant.io/redirect/info/)
+  - type: input
+    id: version_integration
+    validations:
+      required: true
+    attributes:
+      label: What version of keyforsteam Integration has the issue?
+      placeholder:
+      description: >
+        The version from the release page you are using. Latest version can be found here: https://github.com/FaserF/ha-keyforsteam/releases/latest
   - type: dropdown
     validations:
       required: true
@@ -49,89 +54,14 @@ body:
         - Home Assistant Supervised
         - Home Assistant Core
   - type: input
-    id: version_integration
-    validations:
-      required: true
-    attributes:
-      label: What version of this Integration has the issue?
-      placeholder: 
-      description: >
-        The version from the release page you are using. Latest version can be found here: https://github.com/FaserF/ha-keyforsteam/releases/latest
-  - type: input
-    id: station_name
+    id: game_id
     validations:
       required: false
     attributes:
-      label: If possible, please provide the station name you were using.
-      placeholder: 
+      label: What game id did you try to use?
+      placeholder:
       description: >
-        If you dont want to share this due to data privacy, please leave this field empty. You can also provide another station name where you can reproduce the issue.
-  - type: dropdown
-    id: data_source
-    validations:
-      required: true
-    attributes:
-      label: What data source are you using (usually IRIS-TTS)?
-      description: >
-        Please provide the data source you are using. Initially you had to choose one in the config flow data_source while setting up the integration.
-      options:
-        - IRIS-TTS  
-        - hafas=1  
-        - MVV  
-        - ÖBB  
-        - BSVG  
-        - DING  
-        - KVV  
-        - LinzAG  
-        - NVBW  
-        - NWL  
-        - VGN  
-        - VMV  
-        - VRN  
-        - VRR  
-        - VRR2  
-        - VRR3  
-        - VVO  
-        - VVS  
-        - bwegt  
-        - AVV  
-        - BART  
-        - BLS  
-        - BVG  
-        - CMTA  
-        - DSB  
-        - IE  
-        - KVB  
-        - NAHSH  
-        - NASA  
-        - NVV  
-        - RMV  
-        - RSAG  
-        - Resrobot  
-        - STV  
-        - SaarVV  
-        - TPG  
-        - VBB  
-        - VBN  
-        - VMT  
-        - VOS  
-        - ZVV  
-        - mobiliteit
-        - Other
-  - type: dropdown
-    id: server_type
-    validations:
-      required: false
-    attributes:
-      label: Which server are you using? (optional)
-      description: |
-        Please specify the server you are using for API requests.
-      options:
-        - "Official Server (dbf.finalrewind.org)"
-        - "FaserF Server (dbf.fabiseitz.de)"
-        - "Homeassistant App (Add-On) (local)"
-        - "custom (custom)"
-
+        Please note down the game id you have used in the setup of the integration.
   - type: markdown
     attributes:
       value: |
@@ -146,7 +76,7 @@ body:
   - type: textarea
     attributes:
       label: Anything in the logs that might be useful for us?
-      description: For example, error message, or stack traces.
+      description: Please enable debugging for this integration and paste the log output here. See https://github.com/FaserF/ha-keyforsteam#bug-reporting
       render: txt
   - type: textarea
     attributes:
