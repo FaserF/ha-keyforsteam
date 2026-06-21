@@ -12,7 +12,12 @@ def find_manifest():
     return matches[0] if matches else None
 
 
-def get_current_version(manifest_path):
+MANIFEST_FILE = find_manifest()
+
+
+def get_current_version(manifest_path=None):
+    if manifest_path is None:
+        manifest_path = MANIFEST_FILE
     try:
         tags = (
             subprocess.check_output(["git", "tag"], stderr=subprocess.DEVNULL)
@@ -22,7 +27,7 @@ def get_current_version(manifest_path):
         v_tags = []
         for tag in tags:
             tag = tag.strip()
-            match = re.match(r"^(\d+)\.(\d+)\.(\d+)(?:(b)(\d+)|(-dev)(\d+))?$", tag)
+            match = re.match(r"^v?(\d+)\.(\d+)\.(\d+)(?:(b)(\d+)|(-dev)(\d+))?$", tag)
             if match:
                 y, m, p, bp, bn, dp, dn = match.groups()
                 v_tags.append(
@@ -47,9 +52,9 @@ def get_current_version(manifest_path):
     return "2026.1.0"
 
 
-def write_version(v, manifest_path):
-    with open("VERSION", "w") as f:
-        f.write(v)
+def write_version(v, manifest_path=None):
+    if manifest_path is None:
+        manifest_path = MANIFEST_FILE
     if manifest_path and os.path.exists(manifest_path):
         with open(manifest_path, "r") as f:
             data = json.load(f)
@@ -59,65 +64,54 @@ def write_version(v, manifest_path):
             f.write("\n")
 
 
-def calculate_version(bump_type, is_beta, is_dev, curr):
-    match = re.match(r"^(\d+)\.(\d+)\.(\d+)(?:(b)(\d+)|(-dev)(\d+))?$", curr)
-    if not match:
-        return "1.0.0"
-    
-    major, minor, patch, b_p, b_n, d_p, d_n = match.groups()
-    major, minor, patch = int(major), int(minor), int(patch)
-    
-    # Handle existing beta/dev suffix
-    stype, snum = (
-        ("b", int(b_n)) if b_p else (("-dev", int(d_n)) if d_p else (None, 0))
-    )
-
-    if is_dev:
-        # For dev, we usually just bump the dev number if already on dev,
-        # or bump patch and start dev0
-        if stype == "-dev":
-            return f"{major}.{minor}.{patch}-dev{snum+1}"
-        return f"{major}.{minor}.{patch+1}-dev0"
-
-    if is_beta:
+def calculate_version(rtype, curr=None, now=None):
+    if now is None:
+        now = datetime.datetime.now()
+    if curr is None:
+        curr = get_current_version(MANIFEST_FILE)
+    year, month = now.year, now.month
+    match = re.match(r"^v?(\d+)\.(\d+)\.(\d+)(?:(b)(\d+)|(-dev)(\d+))?$", curr)
+    if match:
+        cy, cm, cp, b_p, b_n, d_p, d_n = match.groups()
+        cy, cm, cp = int(cy), int(cm), int(cp)
+        stype, snum = (
+            ("b", int(b_n)) if b_p else (("-dev", int(d_n)) if d_p else (None, 0))
+        )
+    else:
+        cy, cm, cp, stype, snum = 0, 0, 0, None, 0
+    new_cyc = year != cy or month != cm
+    p = 0 if new_cyc else cp
+    if rtype == "stable":
+        if stype:
+            return f"{year}.{month}.{p}"
+        return f"{year}.{month}.0" if new_cyc else f"{year}.{month}.{p + 1}"
+    if rtype == "beta":
+        if new_cyc:
+            return f"{year}.{month}.0b0"
         if stype == "b":
-            # Just increment beta number
-            return f"{major}.{minor}.{patch}b{snum+1}"
-        
-        # New beta: bump version according to type and start b0
-        if bump_type == "major":
-            return f"{major+1}.0.0b0"
-        elif bump_type == "minor":
-            return f"{major}.{minor+1}.0b0"
-        else: # patch
-            return f"{major}.{minor}.{patch+1}b0"
-
-    # Stable release
-    if stype:
-        # If we were on beta/dev, "stable" means just removing the suffix
-        return f"{major}.{minor}.{patch}"
-    
-    # Otherwise bump normally
-    if bump_type == "major":
-        return f"{major+1}.0.0"
-    elif bump_type == "minor":
-        return f"{major}.{minor+1}.0"
-    else: # patch
-        return f"{major}.{minor}.{patch+1}"
+            return f"{year}.{month}.{p}b{snum + 1}"
+        if stype == "-dev":
+            return f"{year}.{month}.{p}b0"
+        return f"{year}.{month}.{p + 1}b0"
+    if rtype in ["dev", "nightly"]:
+        if new_cyc:
+            return f"{year}.{month}.0-dev0"
+        if stype == "-dev":
+            return f"{year}.{month}.{p}-dev{snum + 1}"
+        return f"{year}.{month}.{p + 1}-dev0"
+    raise ValueError(f"Unknown type: {rtype}")
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("action", choices=["get", "bump"])
-    parser.add_argument("--bump", choices=["major", "minor", "patch"], default="patch")
-    parser.add_argument("--beta", action="store_true")
-    parser.add_argument("--dev", action="store_true")
+    parser.add_argument("--type", choices=["stable", "beta", "nightly", "dev"])
     parser.add_argument("--manifest", default=None)
     args = parser.parse_args()
-    m_path = args.manifest or find_manifest()
+    m_path = args.manifest or MANIFEST_FILE
     if args.action == "get":
         print(get_current_version(m_path))
     elif args.action == "bump":
-        v = calculate_version(args.bump, args.beta, args.dev, get_current_version(m_path))
+        v = calculate_version(args.type, get_current_version(m_path))
         write_version(v, m_path)
         print(v)
