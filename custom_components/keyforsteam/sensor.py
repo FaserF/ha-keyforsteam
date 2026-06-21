@@ -6,6 +6,9 @@ import json
 import random
 import asyncio
 from datetime import datetime, timedelta
+
+import aiohttp
+
 from homeassistant.components.sensor import (
     SensorEntity,
     SensorDeviceClass,
@@ -17,22 +20,6 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.device_registry import DeviceEntryType
-import asyncio
-import aiohttp
-
-USER_AGENTS = [
-    # Chrome on Windows
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-    # Firefox on Windows
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:126.0) Gecko/20100101 Firefox/126.0",
-    # Edge on Windows
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36 Edg/125.0.0.0",
-    # Chrome on macOS
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
-    # Safari on macOS
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Safari/605.1.15",
-]
 
 from .const import (
     DOMAIN,
@@ -55,6 +42,20 @@ from .const import (
     REPAIR_PRODUCT_NOT_FOUND,
     ISSUE_TRACKER_URL,
 )
+
+USER_AGENTS = [
+    # Chrome on Windows
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    # Firefox on Windows
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:126.0) Gecko/20100101 Firefox/126.0",
+    # Edge on Windows
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36 Edg/125.0.0.0",
+    # Chrome on macOS
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
+    # Safari on macOS
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Safari/605.1.15",
+]
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -464,7 +465,7 @@ class KeyforSteamDataUpdateCoordinator(DataUpdateCoordinator):
             try:
                 # Set trust_env=True so standard environment variable proxies (like HTTP_PROXY) are supported
                 async with aiohttp.ClientSession(trust_env=True) as session:
-                    async with async_timeout.timeout(30):
+                    async with asyncio.timeout(10):
                         async with session.get(url, headers=headers) as response:
                             _LOGGER.debug("Response status: %d", response.status)
 
@@ -579,7 +580,7 @@ async def async_setup_entry(
         KeyforSteamRatingSensor(coordinator, entry),
         KeyforSteamOfferCountSensor(coordinator, entry),
     ]
-    async_add_entities(entities, update_before_add=True)
+    async_add_entities(entities)
 
 
 class KeyforSteamBaseEntity(SensorEntity):

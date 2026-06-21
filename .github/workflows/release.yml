@@ -118,7 +118,7 @@ jobs:
 
       - name: Commit and Push
         run: |
-          git add custom_components/keyforsteam/manifest.json
+          git add custom_components/db_infoscreen/manifest.json
           if ! git diff --staged --quiet; then
             git commit -m "chore: release version ${{ needs.versioning.outputs.version }} [skip ci]"
             git push origin HEAD:${{ github.ref_name }} || (git pull --rebase origin ${{ github.ref_name }} && git push origin HEAD:${{ github.ref_name }})
@@ -160,7 +160,7 @@ jobs:
       - name: 📦 Zip Component
         run: |
           cd custom_components
-          zip -r ../keyforsteam.zip keyforsteam
+          zip -r ../db_infoscreen.zip db_infoscreen
           cd ..
 
       - name: Download Release Body Artifact
@@ -178,7 +178,7 @@ jobs:
           draft: false
           generate_release_notes: false
           files: |
-            keyforsteam.zip
+            db_infoscreen.zip
 
   cleanup-release:
     needs: [versioning, sync-version, gh-release]
