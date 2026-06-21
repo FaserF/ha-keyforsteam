@@ -422,7 +422,7 @@ class KeyforSteamDataUpdateCoordinator(DataUpdateCoordinator):
         for attempt in range(1, max_retries + 1):
             if attempt > 1:
                 # Exponential backoff with jitter
-                backoff_delay = (2 ** attempt) + random.uniform(1.0, 3.0)
+                backoff_delay = (2**attempt) + random.uniform(1.0, 3.0)
                 _LOGGER.info(
                     "Retrying request to %s in %.2f seconds (attempt %d/%d)",
                     url,
@@ -434,7 +434,10 @@ class KeyforSteamDataUpdateCoordinator(DataUpdateCoordinator):
             else:
                 # Initial delay/jitter to prevent synchronized/automated-looking hits
                 initial_delay = random.uniform(1.0, 4.0)
-                _LOGGER.debug("Waiting %.2f seconds before fetching to prevent rate limits", initial_delay)
+                _LOGGER.debug(
+                    "Waiting %.2f seconds before fetching to prevent rate limits",
+                    initial_delay,
+                )
                 await asyncio.sleep(initial_delay)
 
             # Choose a random user-agent from the pool
@@ -470,7 +473,9 @@ class KeyforSteamDataUpdateCoordinator(DataUpdateCoordinator):
                             _LOGGER.debug("Response status: %d", response.status)
 
                             if response.status == 404:
-                                _LOGGER.error("Product page not found (404) for URL: %s", url)
+                                _LOGGER.error(
+                                    "Product page not found (404) for URL: %s", url
+                                )
                                 self.consecutive_failures += 1
                                 await self._handle_not_found_repair(True)
                                 raise UpdateFailed(f"Product page not found: {url}")
@@ -480,7 +485,13 @@ class KeyforSteamDataUpdateCoordinator(DataUpdateCoordinator):
                                 html_text = await response.text()
                                 is_cloudflare = any(
                                     marker in html_text.lower()
-                                    for marker in ["cloudflare", "ray id", "captcha-bypass", "ddos guard", "sucuri"]
+                                    for marker in [
+                                        "cloudflare",
+                                        "ray id",
+                                        "captcha-bypass",
+                                        "ddos guard",
+                                        "sucuri",
+                                    ]
                                 )
 
                                 error_msg = (
@@ -501,7 +512,10 @@ class KeyforSteamDataUpdateCoordinator(DataUpdateCoordinator):
                             html = await response.text()
 
                             # Check for Cloudflare/blocking markers even in 200 OK (sometimes challenge pages return 200)
-                            if any(marker in html.lower() for marker in ["ray id", "captcha-bypass", "cloudflare"]):
+                            if any(
+                                marker in html.lower()
+                                for marker in ["ray id", "captcha-bypass", "cloudflare"]
+                            ):
                                 preview = html[:500].replace("\n", " ").strip()
                                 error_msg = f"Cloudflare/Block page detected with HTTP 200 on attempt {attempt}. Response preview: {preview}"
                                 _LOGGER.error(error_msg)
@@ -521,12 +535,14 @@ class KeyforSteamDataUpdateCoordinator(DataUpdateCoordinator):
                                 if js_offers:
                                     if offers:
                                         # Merge metadata from LD with prices from JS
-                                        offers.update({
-                                            "low_price": js_offers["low_price"],
-                                            "high_price": js_offers["high_price"],
-                                            "offer_count": js_offers["offer_count"],
-                                            "offers": js_offers["offers"],
-                                        })
+                                        offers.update(
+                                            {
+                                                "low_price": js_offers["low_price"],
+                                                "high_price": js_offers["high_price"],
+                                                "offer_count": js_offers["offer_count"],
+                                                "offers": js_offers["offers"],
+                                            }
+                                        )
                                     else:
                                         offers = js_offers
 
@@ -535,9 +551,13 @@ class KeyforSteamDataUpdateCoordinator(DataUpdateCoordinator):
                                 _LOGGER.warning(
                                     "Successfully loaded page but could not find game data on attempt %d. "
                                     "The page structure might have changed or access was partially restricted. "
-                                    "HTML sample: %s", attempt, html[:300].replace("\n", " ")
+                                    "HTML sample: %s",
+                                    attempt,
+                                    html[:300].replace("\n", " "),
                                 )
-                                last_error = Exception("Could not find any product data on page")
+                                last_error = Exception(
+                                    "Could not find any product data on page"
+                                )
                                 continue
 
                             # Success - reset failure tracking
@@ -548,7 +568,9 @@ class KeyforSteamDataUpdateCoordinator(DataUpdateCoordinator):
                             return offers
 
             except aiohttp.ClientResponseError as e:
-                _LOGGER.error("HTTP client response error on attempt %d: %s", attempt, e)
+                _LOGGER.error(
+                    "HTTP client response error on attempt %d: %s", attempt, e
+                )
                 last_error = e
                 if e.status == 404:
                     self.consecutive_failures += 1
@@ -558,13 +580,17 @@ class KeyforSteamDataUpdateCoordinator(DataUpdateCoordinator):
                 _LOGGER.error("Timeout fetching URL on attempt %d: %s", attempt, e)
                 last_error = e
             except Exception as e:
-                _LOGGER.exception("Unexpected error fetching URL on attempt %d: %s", attempt, e)
+                _LOGGER.exception(
+                    "Unexpected error fetching URL on attempt %d: %s", attempt, e
+                )
                 last_error = e
 
         # If we got here, all attempts failed
         self.consecutive_failures += 1
         await self._handle_api_repair(True)
-        raise UpdateFailed(f"Failed to update data after {max_retries} attempts. Last error: {last_error}")
+        raise UpdateFailed(
+            f"Failed to update data after {max_retries} attempts. Last error: {last_error}"
+        )
 
 
 async def async_setup_entry(

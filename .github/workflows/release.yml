@@ -13,6 +13,19 @@ name: Release
           - stable
           - beta
           - nightly
+      bump_level:
+        description: "Bump Level (SemVer only: major, minor, patch)"
+        required: false
+        default: "patch"
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+      version_override:
+        description: "Manually override new version (e.g. 1.2.3 or 2026.6.2b1). Leave empty to use automatic calculation."
+        required: false
+        type: string
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-release
@@ -45,6 +58,8 @@ jobs:
         shell: bash
         env:
           RELEASE_TYPE: ${{ inputs.release_type }}
+          BUMP_LEVEL: ${{ inputs.bump_level }}
+          VERSION_OVERRIDE: ${{ inputs.version_override }}
           REPO: ${{ github.repository }}
           OWNER: ${{ github.repository_owner }}
           REPO_NAME: ${{ github.event.repository.name }}
@@ -114,11 +129,11 @@ jobs:
       - name: Update Files
         shell: bash
         run: |
-          python .github/scripts/version_manager.py bump --type ${{ inputs.release_type }}
+          python .github/scripts/version_manager.py bump --type ${{ inputs.release_type }} --level ${{ inputs.bump_level }} --override "${{ inputs.version_override }}"
 
       - name: Commit and Push
         run: |
-          git add custom_components/db_infoscreen/manifest.json
+          git add custom_components/keyforsteam/manifest.json
           if ! git diff --staged --quiet; then
             git commit -m "chore: release version ${{ needs.versioning.outputs.version }} [skip ci]"
             git push origin HEAD:${{ github.ref_name }} || (git pull --rebase origin ${{ github.ref_name }} && git push origin HEAD:${{ github.ref_name }})
@@ -160,7 +175,7 @@ jobs:
       - name: 📦 Zip Component
         run: |
           cd custom_components
-          zip -r ../db_infoscreen.zip db_infoscreen
+          zip -r ../keyforsteam.zip keyforsteam
           cd ..
 
       - name: Download Release Body Artifact
@@ -178,7 +193,7 @@ jobs:
           draft: false
           generate_release_notes: false
           files: |
-            db_infoscreen.zip
+            keyforsteam.zip
 
   cleanup-release:
     needs: [versioning, sync-version, gh-release]

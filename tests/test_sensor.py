@@ -13,6 +13,7 @@ from custom_components.keyforsteam.const import DOMAIN
 @pytest.fixture
 def coordinator(mock_hass, mock_config_entry):
     from unittest.mock import patch
+
     with patch("homeassistant.helpers.frame.report_usage"):
         return KeyforSteamDataUpdateCoordinator(mock_hass, mock_config_entry)
 

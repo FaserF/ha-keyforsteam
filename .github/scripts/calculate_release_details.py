@@ -21,6 +21,7 @@ def run_git(args):
 def main():
     rtype = os.environ.get("RELEASE_TYPE", "beta")
     bump_level = os.environ.get("BUMP_LEVEL", "patch")
+    version_override = os.environ.get("VERSION_OVERRIDE", "")
     repo = os.environ.get("REPO", "").lower()
 
     # Determine owner and repo_name dynamically
@@ -39,9 +40,9 @@ def main():
 
     with open(manifest_path, "r", encoding="utf-8") as f:
         manifest = json.load(f)
-    
+
     friendly_name = manifest.get("name", domain)
-    
+
     # Dynamic documentation URL logic
     docs_url = manifest.get("documentation")
     if not docs_url:
@@ -54,14 +55,24 @@ def main():
                 docs_url = f"https://github.com/faserf/{repo_name}"
 
     # Calculate version via version_manager
+    bump_args = [
+        "python",
+        ".github/scripts/version_manager.py",
+        "bump",
+        "--type",
+        rtype,
+        "--level",
+        bump_level,
+    ]
+    if version_override and version_override.strip():
+        bump_args += ["--override", version_override.strip()]
+
     version = (
-        subprocess.check_output(
-            ["python", ".github/scripts/version_manager.py", "bump", "--type", rtype, "--level", bump_level]
-        )
+        subprocess.check_output(bump_args)
         .decode("utf-8")
         .strip()
     )
-    
+
     # Revert version bump change in manifest file (since versioning job only calculates it, sync-version actually writes it)
     run_git(["checkout", "--", manifest_path])
 

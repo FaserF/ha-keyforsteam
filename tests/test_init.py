@@ -1,5 +1,6 @@
 import pytest
 from unittest.mock import patch, AsyncMock, MagicMock
+
 with patch("homeassistant.helpers.frame.report_usage"):
     from custom_components.keyforsteam import (
         async_setup,
@@ -43,7 +44,10 @@ async def test_async_setup(mock_hass):
         # Since the module is dynamically imported inside the target function, we patch the target function's
         # module globals or simply patch the import target module before running
         import homeassistant.helpers.aiohttp_client as aiohttp_client
-        with patch.object(aiohttp_client, "async_get_clientsession") as mock_get_session:
+
+        with patch.object(
+            aiohttp_client, "async_get_clientsession"
+        ) as mock_get_session:
             session = aiohttp.ClientSession()
             mock_get_session.return_value = session
             try:
