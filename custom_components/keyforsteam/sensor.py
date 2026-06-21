@@ -3,6 +3,8 @@
 import logging
 import re
 import json
+import random
+import asyncio
 from datetime import datetime, timedelta
 from homeassistant.components.sensor import (
     SensorEntity,
@@ -17,6 +19,20 @@ from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.device_registry import DeviceEntryType
 import asyncio
 import aiohttp
+
+USER_AGENTS = [
+    # Chrome on Windows
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    # Firefox on Windows
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:126.0) Gecko/20100101 Firefox/126.0",
+    # Edge on Windows
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36 Edg/125.0.0.0",
+    # Chrome on macOS
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
+    # Safari on macOS
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Safari/605.1.15",
+]
 
 from .const import (
     DOMAIN,
@@ -392,83 +408,162 @@ class KeyforSteamDataUpdateCoordinator(DataUpdateCoordinator):
         self.not_found_repair_created = True
 
     async def _async_update_data(self):
-        """Fetch data from product page JSON-LD."""
+        """Fetch data from product page JSON-LD with retries, jitter, and anti-ban headers."""
         url = self._build_product_url()
         if not url:
             self.consecutive_failures += 1
             await self._handle_api_repair(True)
             raise UpdateFailed("Could not build product URL")
 
-        _LOGGER.debug("Fetching product data from: %s", url)
+        max_retries = 3
+        last_error = None
 
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-            "Accept-Language": "de-DE,de;q=0.9,en-US;q=0.8,en;q=0.7",
-        }
+        for attempt in range(1, max_retries + 1):
+            if attempt > 1:
+                # Exponential backoff with jitter
+                backoff_delay = (2 ** attempt) + random.uniform(1.0, 3.0)
+                _LOGGER.info(
+                    "Retrying request to %s in %.2f seconds (attempt %d/%d)",
+                    url,
+                    backoff_delay,
+                    attempt,
+                    max_retries,
+                )
+                await asyncio.sleep(backoff_delay)
+            else:
+                # Initial delay/jitter to prevent synchronized/automated-looking hits
+                initial_delay = random.uniform(1.0, 4.0)
+                _LOGGER.debug("Waiting %.2f seconds before fetching to prevent rate limits", initial_delay)
+                await asyncio.sleep(initial_delay)
 
-        async with aiohttp.ClientSession() as session:
-            async with asyncio.timeout(30):
-                try:
-                    async with session.get(url, headers=headers) as response:
-                        if response.status == 404:
-                            self.consecutive_failures += 1
-                            await self._handle_not_found_repair(True)
-                            raise UpdateFailed(f"Product page not found: {url}")
+            # Choose a random user-agent from the pool
+            user_agent = random.choice(USER_AGENTS)
 
-                        response.raise_for_status()
-                        html = await response.text()
+            headers = {
+                "User-Agent": user_agent,
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+                "Accept-Language": "de-DE,de;q=0.9,en-US;q=0.8,en;q=0.7",
+                "Accept-Encoding": "gzip, deflate, br",
+                "Connection": "keep-alive",
+                "Upgrade-Insecure-Requests": "1",
+                "Sec-Fetch-Dest": "document",
+                "Sec-Fetch-Mode": "navigate",
+                "Sec-Fetch-Site": "none",
+                "Sec-Fetch-User": "?1",
+                "Cache-Control": "max-age=0",
+            }
 
-                        # 1. Always try to get metadata from JSON-LD
-                        product_data = self._extract_json_ld(html)
-                        offers = None
-                        if product_data:
-                            offers = self._parse_offers(product_data, url)
+            _LOGGER.debug(
+                "Attempt %d/%d: Fetching product data from: %s with User-Agent: %s",
+                attempt,
+                max_retries,
+                url,
+                user_agent,
+            )
 
-                        # 2. Try to get better price data from gamePageTrans
-                        game_data = self._extract_game_page_trans(html)
-                        if game_data:
-                            js_offers = self._parse_game_page_trans(game_data, url)
-                            if js_offers:
-                                if offers:
-                                    # Merge metadata from LD with prices from JS
-                                    offers.update(
-                                        {
+            try:
+                # Set trust_env=True so standard environment variable proxies (like HTTP_PROXY) are supported
+                async with aiohttp.ClientSession(trust_env=True) as session:
+                    async with async_timeout.timeout(30):
+                        async with session.get(url, headers=headers) as response:
+                            _LOGGER.debug("Response status: %d", response.status)
+
+                            if response.status == 404:
+                                _LOGGER.error("Product page not found (404) for URL: %s", url)
+                                self.consecutive_failures += 1
+                                await self._handle_not_found_repair(True)
+                                raise UpdateFailed(f"Product page not found: {url}")
+
+                            # If forbidden or rate limited (Cloudflare)
+                            if response.status in (403, 429):
+                                html_text = await response.text()
+                                is_cloudflare = any(
+                                    marker in html_text.lower()
+                                    for marker in ["cloudflare", "ray id", "captcha-bypass", "ddos guard", "sucuri"]
+                                )
+
+                                error_msg = (
+                                    f"Access blocked by Server (HTTP {response.status}) on attempt {attempt}/{max_retries}. "
+                                    f"The integration is likely banned or rate-limited. "
+                                )
+                                if is_cloudflare:
+                                    error_msg += "Cloudflare protection/challenge page detected. "
+
+                                preview = html_text[:500].replace("\n", " ").strip()
+                                error_msg += f"Response preview: {preview}"
+
+                                _LOGGER.error(error_msg)
+                                last_error = Exception(error_msg)
+                                continue
+
+                            response.raise_for_status()
+                            html = await response.text()
+
+                            # Check for Cloudflare/blocking markers even in 200 OK (sometimes challenge pages return 200)
+                            if any(marker in html.lower() for marker in ["ray id", "captcha-bypass", "cloudflare"]):
+                                preview = html[:500].replace("\n", " ").strip()
+                                error_msg = f"Cloudflare/Block page detected with HTTP 200 on attempt {attempt}. Response preview: {preview}"
+                                _LOGGER.error(error_msg)
+                                last_error = Exception(error_msg)
+                                continue
+
+                            # 1. Always try to get metadata from JSON-LD
+                            product_data = self._extract_json_ld(html)
+                            offers = None
+                            if product_data:
+                                offers = self._parse_offers(product_data, url)
+
+                            # 2. Try to get better price data from gamePageTrans
+                            game_data = self._extract_game_page_trans(html)
+                            if game_data:
+                                js_offers = self._parse_game_page_trans(game_data, url)
+                                if js_offers:
+                                    if offers:
+                                        # Merge metadata from LD with prices from JS
+                                        offers.update({
                                             "low_price": js_offers["low_price"],
                                             "high_price": js_offers["high_price"],
                                             "offer_count": js_offers["offer_count"],
                                             "offers": js_offers["offers"],
-                                        }
-                                    )
-                                else:
-                                    offers = js_offers
+                                        })
+                                    else:
+                                        offers = js_offers
 
-                        if not offers:
-                            self.consecutive_failures += 1
-                            await self._handle_api_repair(True)
-                            raise UpdateFailed(
-                                "Could not find any product data on page"
-                            )
+                            if not offers:
+                                # Sometimes page renders but without expected variables (e.g. empty details or partial block)
+                                _LOGGER.warning(
+                                    "Successfully loaded page but could not find game data on attempt %d. "
+                                    "The page structure might have changed or access was partially restricted. "
+                                    "HTML sample: %s", attempt, html[:300].replace("\n", " ")
+                                )
+                                last_error = Exception("Could not find any product data on page")
+                                continue
 
-                        # Success - reset failure tracking
-                        self.consecutive_failures = 0
-                        self.last_successful_fetch = datetime.now()
-                        await self._handle_api_repair(False)
-                        await self._handle_not_found_repair(False)
+                            # Success - reset failure tracking
+                            self.consecutive_failures = 0
+                            self.last_successful_fetch = datetime.now()
+                            await self._handle_api_repair(False)
+                            await self._handle_not_found_repair(False)
+                            return offers
 
-                        return offers
-
-                except aiohttp.ClientResponseError as e:
+            except aiohttp.ClientResponseError as e:
+                _LOGGER.error("HTTP client response error on attempt %d: %s", attempt, e)
+                last_error = e
+                if e.status == 404:
                     self.consecutive_failures += 1
-                    if e.status == 404:
-                        await self._handle_not_found_repair(True)
-                    else:
-                        await self._handle_api_repair(True)
-                    raise UpdateFailed(f"HTTP error: {e}")
-                except Exception as e:
-                    self.consecutive_failures += 1
-                    await self._handle_api_repair(True)
-                    raise UpdateFailed(f"Error: {e}")
+                    await self._handle_not_found_repair(True)
+                    raise UpdateFailed(f"Product page not found: {e}")
+            except asyncio.TimeoutError as e:
+                _LOGGER.error("Timeout fetching URL on attempt %d: %s", attempt, e)
+                last_error = e
+            except Exception as e:
+                _LOGGER.exception("Unexpected error fetching URL on attempt %d: %s", attempt, e)
+                last_error = e
+
+        # If we got here, all attempts failed
+        self.consecutive_failures += 1
+        await self._handle_api_repair(True)
+        raise UpdateFailed(f"Failed to update data after {max_retries} attempts. Last error: {last_error}")
 
 
 async def async_setup_entry(
