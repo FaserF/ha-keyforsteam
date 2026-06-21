@@ -612,6 +612,8 @@ async def async_setup_entry(
 class KeyforSteamBaseEntity(SensorEntity):
     """Base class for KeyforSteam sensors."""
 
+    _coordinator: KeyforSteamDataUpdateCoordinator
+
     def __init__(
         self, coordinator: KeyforSteamDataUpdateCoordinator, entry: ConfigEntry
     ):
@@ -720,6 +722,7 @@ class KeyforSteamPriceSensor(KeyforSteamBaseEntity):
 class KeyforSteamRatingSensor(KeyforSteamBaseEntity):
     """Representation of a KeyforSteam rating sensor."""
 
+    _coordinator: KeyforSteamDataUpdateCoordinator
     _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_icon = "mdi:star"
     _attr_translation_key = "rating"
@@ -756,6 +759,7 @@ class KeyforSteamRatingSensor(KeyforSteamBaseEntity):
 class KeyforSteamOfferCountSensor(KeyforSteamBaseEntity):
     """Representation of a KeyforSteam offer count sensor."""
 
+    _coordinator: KeyforSteamDataUpdateCoordinator
     _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_icon = "mdi:store"
     _attr_translation_key = "offer_count"
