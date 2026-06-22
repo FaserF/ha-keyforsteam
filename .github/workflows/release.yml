@@ -214,7 +214,8 @@ jobs:
 
       - name: 📦 Zip Component
         run: |
-          zip -r keyforsteam.zip custom_components/keyforsteam
+          cd custom_components/keyforsteam
+          zip -r ../../keyforsteam.zip .
 
       - name: Download Release Body Artifact
         uses: actions/download-artifact@v8
