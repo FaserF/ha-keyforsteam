@@ -41,7 +41,26 @@ from .const import (
     REPAIR_API_FAILURE,
     REPAIR_PRODUCT_NOT_FOUND,
     ISSUE_TRACKER_URL,
+    CLOUDFLARE_BACKOFF_HOURS,
+    MAX_RETRIES,
 )
+
+# Markers that indicate a Cloudflare/bot-detection page (applies to both
+# non-200 responses AND to 200 responses that are challenge pages).
+CLOUDFLARE_MARKERS = [
+    "ray id",
+    "captcha-bypass",
+    "ddos guard",
+    "sucuri",
+    "just a moment",
+    "checking your browser",
+    "please wait",
+    "enable javascript and cookies",
+    "challenge-form",
+    "cf-browser-verification",
+    "cf-challenge",
+    "cloudflare-challenge",
+]
 
 USER_AGENTS = [
     # Chrome on Windows
@@ -105,6 +124,13 @@ class KeyforSteamDataUpdateCoordinator(DataUpdateCoordinator):
         self.last_successful_fetch: datetime | None = None
         self.api_repair_created = False
         self.not_found_repair_created = False
+
+        # Backoff tracking: when a Cloudflare block is detected, we set this
+        # to a future datetime and skip all requests until it has elapsed.
+        # This persists as long as the coordinator object is alive (i.e. until
+        # the next full HA restart), which is intentional – the ban typically
+        # lasts hours, not seconds.
+        self._backoff_until: datetime | None = None
 
         super().__init__(
             hass,
@@ -409,38 +435,75 @@ class KeyforSteamDataUpdateCoordinator(DataUpdateCoordinator):
         self.not_found_repair_created = True
 
     async def _async_update_data(self):
-        """Fetch data from product page JSON-LD with retries, jitter, and anti-ban headers."""
+        """Fetch data from product page with retries, jitter, and anti-ban logic.
+
+        Key design decisions to avoid Cloudflare bans:
+        - Use the shared HA aiohttp session (has persistent cookies, not a fresh
+          connection every time).
+        - On a Cloudflare block: immediately abort retries and set a backoff
+          timer. Return cached data so entities stay available.
+        - On HA restart: _backoff_until is checked first, so no request is made
+          while a backoff is active.
+        - Max retries is deliberately low (MAX_RETRIES=2) to avoid hitting the
+          server in a tight loop.
+        """
+        from homeassistant.helpers import aiohttp_client
+
         url = self._build_product_url()
         if not url:
             self.consecutive_failures += 1
             await self._handle_api_repair(True)
             raise UpdateFailed("Could not build product URL")
 
-        max_retries = 3
+        # --- Backoff guard ---
+        # If a Cloudflare block was detected previously, skip the request
+        # entirely and return whatever data we already have.
+        now = datetime.now()
+        if self._backoff_until is not None and now < self._backoff_until:
+            remaining = (self._backoff_until - now).total_seconds() / 3600
+            _LOGGER.warning(
+                "Skipping fetch for '%s': Cloudflare backoff active for another %.1f hour(s). "
+                "Existing data will be preserved.",
+                self.product_name or self.product_id,
+                remaining,
+            )
+            # Return cached data to keep entities available
+            if self.data is not None:
+                return self.data
+            raise UpdateFailed(
+                f"Cloudflare backoff active for another {remaining:.1f} hour(s). "
+                "Will retry automatically once the backoff expires."
+            )
+
+        # Use the shared HA session – it reuses cookies and looks more like a
+        # real browser session than a freshly created ClientSession.
+        session = aiohttp_client.async_get_clientsession(self.hass)
+
         last_error = None
 
-        for attempt in range(1, max_retries + 1):
+        for attempt in range(1, MAX_RETRIES + 1):
             if attempt > 1:
-                # Exponential backoff with jitter
-                backoff_delay = (2**attempt) + random.uniform(1.0, 3.0)
+                # Exponential backoff with jitter between retries
+                backoff_delay = (2 ** attempt) + random.uniform(1.0, 3.0)
                 _LOGGER.info(
                     "Retrying request to %s in %.2f seconds (attempt %d/%d)",
                     url,
                     backoff_delay,
                     attempt,
-                    max_retries,
+                    MAX_RETRIES,
                 )
                 await asyncio.sleep(backoff_delay)
             else:
-                # Initial delay/jitter to prevent synchronized/automated-looking hits
-                initial_delay = random.uniform(1.0, 4.0)
+                # Initial random delay to desynchronise from other integrations
+                # and prevent request storms after HA restarts.
+                initial_delay = random.uniform(2.0, 8.0)
                 _LOGGER.debug(
-                    "Waiting %.2f seconds before fetching to prevent rate limits",
+                    "Waiting %.2f seconds before fetching '%s' to reduce bot fingerprint",
                     initial_delay,
+                    self.product_name or self.product_id,
                 )
                 await asyncio.sleep(initial_delay)
 
-            # Choose a random user-agent from the pool
             user_agent = random.choice(USER_AGENTS)
 
             headers = {
@@ -458,114 +521,112 @@ class KeyforSteamDataUpdateCoordinator(DataUpdateCoordinator):
             }
 
             _LOGGER.debug(
-                "Attempt %d/%d: Fetching product data from: %s with User-Agent: %s",
+                "Attempt %d/%d: Fetching product data from: %s",
                 attempt,
-                max_retries,
+                MAX_RETRIES,
                 url,
-                user_agent,
             )
 
             try:
-                # Set trust_env=True so standard environment variable proxies (like HTTP_PROXY) are supported
-                async with aiohttp.ClientSession(trust_env=True) as session:
-                    async with asyncio.timeout(10):
-                        async with session.get(url, headers=headers) as response:
-                            _LOGGER.debug("Response status: %d", response.status)
+                async with asyncio.timeout(15):
+                    async with session.get(url, headers=headers) as response:
+                        _LOGGER.debug("Response status: %d", response.status)
 
-                            if response.status == 404:
-                                _LOGGER.error(
-                                    "Product page not found (404) for URL: %s", url
-                                )
-                                self.consecutive_failures += 1
-                                await self._handle_not_found_repair(True)
-                                raise UpdateFailed(f"Product page not found: {url}")
+                        if response.status == 404:
+                            _LOGGER.error(
+                                "Product page not found (404) for URL: %s", url
+                            )
+                            self.consecutive_failures += 1
+                            await self._handle_not_found_repair(True)
+                            raise UpdateFailed(f"Product page not found: {url}")
 
-                            # If forbidden or rate limited (Cloudflare)
-                            if response.status in (403, 429):
-                                html_text = await response.text()
-                                is_cloudflare = any(
-                                    marker in html_text.lower()
-                                    for marker in [
-                                        "cloudflare",
-                                        "ray id",
-                                        "captcha-bypass",
-                                        "ddos guard",
-                                        "sucuri",
-                                    ]
-                                )
-
-                                error_msg = (
-                                    f"Access blocked by Server (HTTP {response.status}) on attempt {attempt}/{max_retries}. "
-                                    f"The integration is likely banned or rate-limited. "
-                                )
-                                if is_cloudflare:
-                                    error_msg += "Cloudflare protection/challenge page detected. "
-
-                                preview = html_text[:500].replace("\n", " ").strip()
-                                error_msg += f"Response preview: {preview}"
-
+                        # Non-200 status (e.g. 403, 429) – check for Cloudflare
+                        if response.status != 200:
+                            html_text = await response.text()
+                            html_lower = html_text.lower()
+                            is_cloudflare = any(
+                                marker in html_lower for marker in CLOUDFLARE_MARKERS
+                            )
+                            error_msg = (
+                                f"Access blocked (HTTP {response.status}) on attempt "
+                                f"{attempt}/{MAX_RETRIES}."
+                            )
+                            if is_cloudflare:
+                                error_msg += " Cloudflare/bot-protection page detected."
+                                self._set_cloudflare_backoff()
                                 _LOGGER.error(error_msg)
+                                # Break out immediately – more retries will only make the ban worse
                                 last_error = Exception(error_msg)
-                                continue
+                                break
 
-                            response.raise_for_status()
-                            html = await response.text()
+                            preview = html_text[:400].replace("\n", " ").strip()
+                            error_msg += f" Response preview: {preview}"
+                            _LOGGER.error(error_msg)
+                            last_error = Exception(error_msg)
+                            continue
 
-                            # Check for Cloudflare/blocking markers even in 200 OK (sometimes challenge pages return 200)
-                            if any(
-                                marker in html.lower()
-                                for marker in ["ray id", "captcha-bypass", "cloudflare"]
-                            ):
-                                preview = html[:500].replace("\n", " ").strip()
-                                error_msg = f"Cloudflare/Block page detected with HTTP 200 on attempt {attempt}. Response preview: {preview}"
-                                _LOGGER.error(error_msg)
-                                last_error = Exception(error_msg)
-                                continue
+                        response.raise_for_status()
+                        html = await response.text()
 
-                            # 1. Always try to get metadata from JSON-LD
-                            product_data = self._extract_json_ld(html)
-                            offers = None
-                            if product_data:
-                                offers = self._parse_offers(product_data, url)
+                        # Even on HTTP 200, Cloudflare sometimes serves a
+                        # challenge page. Detect and handle it like a block.
+                        html_lower = html.lower()
+                        if any(marker in html_lower for marker in CLOUDFLARE_MARKERS):
+                            preview = html[:400].replace("\n", " ").strip()
+                            error_msg = (
+                                f"Cloudflare/bot-protection page detected (HTTP 200) on attempt "
+                                f"{attempt}/{MAX_RETRIES}. Response preview: {preview}"
+                            )
+                            _LOGGER.error(error_msg)
+                            self._set_cloudflare_backoff()
+                            last_error = Exception(error_msg)
+                            # Break immediately – retrying will not help and increases ban risk
+                            break
 
-                            # 2. Try to get better price data from gamePageTrans
-                            game_data = self._extract_game_page_trans(html)
-                            if game_data:
-                                js_offers = self._parse_game_page_trans(game_data, url)
-                                if js_offers:
-                                    if offers:
-                                        # Merge metadata from LD with prices from JS
-                                        offers.update(
-                                            {
-                                                "low_price": js_offers["low_price"],
-                                                "high_price": js_offers["high_price"],
-                                                "offer_count": js_offers["offer_count"],
-                                                "offers": js_offers["offers"],
-                                            }
-                                        )
-                                    else:
-                                        offers = js_offers
+                        # --- Parse the page ---
+                        # 1. Always try JSON-LD for metadata
+                        product_data = self._extract_json_ld(html)
+                        offers = None
+                        if product_data:
+                            offers = self._parse_offers(product_data, url)
 
-                            if not offers:
-                                # Sometimes page renders but without expected variables (e.g. empty details or partial block)
-                                _LOGGER.warning(
-                                    "Successfully loaded page but could not find game data on attempt %d. "
-                                    "The page structure might have changed or access was partially restricted. "
-                                    "HTML sample: %s",
-                                    attempt,
-                                    html[:300].replace("\n", " "),
-                                )
-                                last_error = Exception(
-                                    "Could not find any product data on page"
-                                )
-                                continue
+                        # 2. Try the richer gamePageTrans JS object for price data
+                        game_data = self._extract_game_page_trans(html)
+                        if game_data:
+                            js_offers = self._parse_game_page_trans(game_data, url)
+                            if js_offers:
+                                if offers:
+                                    # Merge: metadata from LD + prices from JS
+                                    offers.update(
+                                        {
+                                            "low_price": js_offers["low_price"],
+                                            "high_price": js_offers["high_price"],
+                                            "offer_count": js_offers["offer_count"],
+                                            "offers": js_offers["offers"],
+                                        }
+                                    )
+                                else:
+                                    offers = js_offers
 
-                            # Success - reset failure tracking
-                            self.consecutive_failures = 0
-                            self.last_successful_fetch = datetime.now()
-                            await self._handle_api_repair(False)
-                            await self._handle_not_found_repair(False)
-                            return offers
+                        if not offers:
+                            _LOGGER.warning(
+                                "Page loaded successfully but no game data found on attempt %d. "
+                                "Page structure may have changed. HTML sample: %s",
+                                attempt,
+                                html[:300].replace("\n", " "),
+                            )
+                            last_error = Exception(
+                                "Could not find any product data on page"
+                            )
+                            continue
+
+                        # --- Success ---
+                        self.consecutive_failures = 0
+                        self.last_successful_fetch = datetime.now()
+                        self._backoff_until = None  # Clear any previous backoff
+                        await self._handle_api_repair(False)
+                        await self._handle_not_found_repair(False)
+                        return offers
 
             except aiohttp.ClientResponseError as e:
                 _LOGGER.error(
@@ -579,17 +640,42 @@ class KeyforSteamDataUpdateCoordinator(DataUpdateCoordinator):
             except asyncio.TimeoutError as e:
                 _LOGGER.error("Timeout fetching URL on attempt %d: %s", attempt, e)
                 last_error = e
+            except UpdateFailed:
+                raise  # propagate 404-triggered UpdateFailed immediately
             except Exception as e:
                 _LOGGER.exception(
                     "Unexpected error fetching URL on attempt %d: %s", attempt, e
                 )
                 last_error = e
 
-        # If we got here, all attempts failed
+        # All attempts failed (or aborted due to Cloudflare block)
         self.consecutive_failures += 1
         await self._handle_api_repair(True)
+
+        # If we have stale data, return it so entities stay available rather
+        # than flipping to 'unavailable' on every blocked refresh.
+        if self.data is not None:
+            _LOGGER.warning(
+                "All fetch attempts failed for '%s'. Preserving last known data. Last error: %s",
+                self.product_name or self.product_id,
+                last_error,
+            )
+            return self.data
+
         raise UpdateFailed(
-            f"Failed to update data after {max_retries} attempts. Last error: {last_error}"
+            f"Failed to update data after {MAX_RETRIES} attempts. Last error: {last_error}"
+        )
+
+    def _set_cloudflare_backoff(self):
+        """Set a backoff timestamp to avoid hammering a site that is blocking us."""
+        self._backoff_until = datetime.now() + timedelta(hours=CLOUDFLARE_BACKOFF_HOURS)
+        _LOGGER.warning(
+            "Cloudflare/bot-protection block detected for '%s'. "
+            "Backing off for %d hours until %s to prevent a ban. "
+            "Existing sensor data will be preserved during this period.",
+            self.product_name or self.product_id,
+            CLOUDFLARE_BACKOFF_HOURS,
+            self._backoff_until.strftime("%H:%M"),
         )
 
 

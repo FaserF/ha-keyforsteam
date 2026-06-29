@@ -16,6 +16,10 @@ ALLKEYSHOP_PRODUCT_URL = (
 UPDATE_INTERVAL_HOURS = 1
 REPAIR_THRESHOLD_HOURS = 24
 
+# Anti-Ban / Rate Limit Settings
+CLOUDFLARE_BACKOFF_HOURS = 6  # Hours to wait after a Cloudflare block before retrying
+MAX_RETRIES = 2  # Max retries per update cycle (kept low to avoid triggering bans)
+
 # Repair Issue Identifiers
 REPAIR_API_FAILURE = "api_failure"
 REPAIR_PRODUCT_NOT_FOUND = "product_not_found"

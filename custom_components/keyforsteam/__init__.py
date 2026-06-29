@@ -159,7 +159,24 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     from .sensor import KeyforSteamDataUpdateCoordinator
 
     coordinator = KeyforSteamDataUpdateCoordinator(hass, entry)
-    await coordinator.async_config_entry_first_refresh()
+
+    # Use a fault-tolerant first refresh: if the initial fetch fails (e.g. because
+    # Cloudflare is blocking us or the site is temporarily down), we do NOT want
+    # to abort the entire entry setup. Aborting causes HA to schedule an immediate
+    # retry, which can trigger rapid-fire requests and worsen a rate-limit/ban.
+    # Instead, we initialise the entry with no data; the coordinator's scheduled
+    # update interval will handle the first real fetch in the background.
+    try:
+        await coordinator.async_config_entry_first_refresh()
+    except Exception as err:
+        _LOGGER.warning(
+            "First data fetch for '%s' failed (%s). "
+            "Integration will initialise with no data and retry on the next scheduled update. "
+            "This is expected after a Cloudflare block or temporary network issue.",
+            coordinator.product_name or coordinator.product_id,
+            err,
+        )
+
     hass.data[DOMAIN][entry.entry_id] = {"coordinator": coordinator}
 
     # Determine which platforms to load
