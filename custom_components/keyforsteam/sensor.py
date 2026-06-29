@@ -484,7 +484,7 @@ class KeyforSteamDataUpdateCoordinator(DataUpdateCoordinator):
         for attempt in range(1, MAX_RETRIES + 1):
             if attempt > 1:
                 # Exponential backoff with jitter between retries
-                backoff_delay = (2 ** attempt) + random.uniform(1.0, 3.0)
+                backoff_delay = (2**attempt) + random.uniform(1.0, 3.0)
                 _LOGGER.info(
                     "Retrying request to %s in %.2f seconds (attempt %d/%d)",
                     url,

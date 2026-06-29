@@ -46,9 +46,7 @@ async def test_backoff_raises_when_active_and_no_cached_data(coordinator):
     coordinator._backoff_until = datetime.now() + timedelta(hours=3)
     coordinator.data = None
 
-    with patch(
-        "homeassistant.helpers.aiohttp_client.async_get_clientsession"
-    ):
+    with patch("homeassistant.helpers.aiohttp_client.async_get_clientsession"):
         with pytest.raises(UpdateFailed, match="Cloudflare backoff active"):
             await coordinator._async_update_data()
 
@@ -215,5 +213,6 @@ async def test_setup_entry_succeeds_even_if_first_refresh_fails(
     # Entry setup must succeed despite the failed first refresh
     assert result is True
     from custom_components.keyforsteam.const import DOMAIN
+
     assert DOMAIN in mock_hass.data
     assert mock_config_entry.entry_id in mock_hass.data[DOMAIN]
