@@ -123,7 +123,7 @@
   "issues": {
     "api_failure": {
       "title": "KeyforSteam API Connection Failed",
-      "description": "The integration has been unable to fetch price data for over 24 hours. This may indicate that the API has changed.\n\nPlease check for updates or report this issue: {issue_url}"
+      "description": "The integration has been unable to fetch price data for {product_name} for over 24 hours. This may indicate that the API has changed.\n\nPlease check for updates or report this issue: {issue_url}"
     },
     "product_not_found": {
       "title": "KeyforSteam Product Not Found",

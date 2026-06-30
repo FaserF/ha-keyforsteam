@@ -376,9 +376,8 @@ class KeyforSteamDataUpdateCoordinator(DataUpdateCoordinator):
         issue_id = f"{REPAIR_API_FAILURE}_{self.product_id}"
 
         if not failed:
-            if self.api_repair_created:
-                ir.async_delete_issue(self.hass, DOMAIN, issue_id)
-                self.api_repair_created = False
+            ir.async_delete_issue(self.hass, DOMAIN, issue_id)
+            self.api_repair_created = False
             return
 
         if self.api_repair_created:
@@ -400,7 +399,10 @@ class KeyforSteamDataUpdateCoordinator(DataUpdateCoordinator):
                 is_persistent=True,
                 severity=ir.IssueSeverity.WARNING,
                 translation_key=REPAIR_API_FAILURE,
-                translation_placeholders={"issue_url": ISSUE_TRACKER_URL},
+                translation_placeholders={
+                    "product_name": self.product_name or self.product_id,
+                    "issue_url": ISSUE_TRACKER_URL,
+                },
             )
             self.api_repair_created = True
 
@@ -411,9 +413,8 @@ class KeyforSteamDataUpdateCoordinator(DataUpdateCoordinator):
         issue_id = f"{REPAIR_PRODUCT_NOT_FOUND}_{self.product_id}"
 
         if not is_404:
-            if self.not_found_repair_created:
-                ir.async_delete_issue(self.hass, DOMAIN, issue_id)
-                self.not_found_repair_created = False
+            ir.async_delete_issue(self.hass, DOMAIN, issue_id)
+            self.not_found_repair_created = False
             return
 
         if self.not_found_repair_created:

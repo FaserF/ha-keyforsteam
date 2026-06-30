@@ -123,7 +123,7 @@
   "issues": {
     "api_failure": {
       "title": "KeyforSteam API-Verbindung fehlgeschlagen",
-      "description": "Die Integration konnte seit über 24 Stunden keine Preisdaten abrufen. Dies kann darauf hindeuten, dass sich die API geändert hat.\n\nBitte suche nach Updates oder melde dieses Problem: {issue_url}"
+      "description": "Die Integration konnte seit über 24 Stunden keine Preisdaten für {product_name} abrufen. Dies kann darauf hindeuten, dass sich die API geändert hat.\n\nBitte suche nach Updates oder melde dieses Problem: {issue_url}"
     },
     "product_not_found": {
       "title": "KeyforSteam Produkt nicht gefunden",

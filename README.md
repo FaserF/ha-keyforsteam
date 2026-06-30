@@ -2,8 +2,8 @@
 
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg?style=for-the-badge)](https://github.com/hacs/integration)
 [![Downloads (Current release)](https://img.shields.io/github/downloads/FaserF/ha-keyforsteam/latest/keyforsteam.zip?label=Downloads%20(Current%20release)&style=for-the-badge)](https://github.com/FaserF/ha-keyforsteam/releases)
-[![Ruff](https://github.com/FaserF/ha-keyforsteam/actions/workflows/lint.yaml/badge.svg)](https://github.com/FaserF/ha-keyforsteam/actions/workflows/lint.yaml)
-[![Hassfest](https://github.com/FaserF/ha-keyforsteam/actions/workflows/hassfest.yaml/badge.svg)](https://github.com/FaserF/ha-keyforsteam/actions/workflows/hassfest.yaml)
+[![Ruff](https://img.shields.io/github/actions/workflow/status/FaserF/ha-keyforsteam/ci-orchestrator.yml?label=Ruff&style=for-the-badge)](https://github.com/FaserF/ha-keyforsteam/actions/workflows/ci-orchestrator.yml)
+[![Hassfest](https://img.shields.io/github/actions/workflow/status/FaserF/ha-keyforsteam/ci-orchestrator.yml?label=Hassfest&style=for-the-badge)](https://github.com/FaserF/ha-keyforsteam/actions/workflows/ci-orchestrator.yml)
 
 Track game prices from **KeyForSteam** (AllKeyShop) directly in Home Assistant. Get real-time updates on the lowest prices, best deals, and seller information for your favorite games.
 
