@@ -9,6 +9,7 @@ import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.core import callback
 from homeassistant.helpers.selector import (
+    SelectOptionDict,
     SelectSelector,
     SelectSelectorConfig,
     SelectSelectorMode,
@@ -330,9 +331,25 @@ class KeyforSteamConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: 
                 errors["game_selection"] = "invalid_selection"
 
         # Build selection options
-        options = [
+        options: list[SelectOptionDict] = [
             {"value": str(game.get("id")), "label": game.get("name", "Unknown")}
             for game in self._search_results
+        ]
+
+        currency_options: list[SelectOptionDict] = [
+            {"value": "eur", "label": "EUR (€)"},
+            {"value": "usd", "label": "USD ($)"},
+            {"value": "gbp", "label": "GBP (£)"},
+        ]
+
+        payment_options: list[SelectOptionDict] = [
+            {"value": PAYMENT_METHOD_BASE, "label": "base"},
+            {"value": PAYMENT_METHOD_CARD, "label": "card"},
+            {"value": PAYMENT_METHOD_PAYPAL, "label": "paypal"},
+            {
+                "value": PAYMENT_METHOD_LOWEST_FEES,
+                "label": "lowest_fees",
+            },
         ]
 
         return self.async_show_form(
@@ -349,11 +366,7 @@ class KeyforSteamConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: 
                         CONF_CURRENCY, default=DEFAULT_CURRENCY
                     ): SelectSelector(
                         SelectSelectorConfig(
-                            options=[
-                                {"value": "eur", "label": "EUR (€)"},
-                                {"value": "usd", "label": "USD ($)"},
-                                {"value": "gbp", "label": "GBP (£)"},
-                            ],
+                            options=currency_options,
                             mode=SelectSelectorMode.DROPDOWN,
                         )
                     ),
@@ -367,15 +380,7 @@ class KeyforSteamConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: 
                         CONF_PAYMENT_METHOD, default=PAYMENT_METHOD_LOWEST_FEES
                     ): SelectSelector(
                         SelectSelectorConfig(
-                            options=[
-                                {"value": PAYMENT_METHOD_BASE, "label": "base"},
-                                {"value": PAYMENT_METHOD_CARD, "label": "card"},
-                                {"value": PAYMENT_METHOD_PAYPAL, "label": "paypal"},
-                                {
-                                    "value": PAYMENT_METHOD_LOWEST_FEES,
-                                    "label": "lowest_fees",
-                                },
-                            ],
+                            options=payment_options,
                             mode=SelectSelectorMode.DROPDOWN,
                             translation_key="payment_method",
                         )
@@ -427,6 +432,22 @@ class KeyforSteamOptionsFlow(config_entries.OptionsFlow):
             CONF_UPDATE_INTERVAL, data.get(CONF_UPDATE_INTERVAL, UPDATE_INTERVAL_HOURS)
         )
 
+        currency_options: list[SelectOptionDict] = [
+            {"value": "eur", "label": "EUR (€)"},
+            {"value": "usd", "label": "USD ($)"},
+            {"value": "gbp", "label": "GBP (£)"},
+        ]
+
+        payment_options: list[SelectOptionDict] = [
+            {"value": PAYMENT_METHOD_BASE, "label": "base"},
+            {"value": PAYMENT_METHOD_CARD, "label": "card"},
+            {"value": PAYMENT_METHOD_PAYPAL, "label": "paypal"},
+            {
+                "value": PAYMENT_METHOD_LOWEST_FEES,
+                "label": "lowest_fees",
+            },
+        ]
+
         return self.async_show_form(
             step_id="init",
             data_schema=vol.Schema(
@@ -435,11 +456,7 @@ class KeyforSteamOptionsFlow(config_entries.OptionsFlow):
                         CONF_CURRENCY, default=current_currency
                     ): SelectSelector(
                         SelectSelectorConfig(
-                            options=[
-                                {"value": "eur", "label": "EUR (€)"},
-                                {"value": "usd", "label": "USD ($)"},
-                                {"value": "gbp", "label": "GBP (£)"},
-                            ],
+                            options=currency_options,
                             mode=SelectSelectorMode.DROPDOWN,
                         )
                     ),
@@ -454,15 +471,7 @@ class KeyforSteamOptionsFlow(config_entries.OptionsFlow):
                         CONF_PAYMENT_METHOD, default=current_payment_method
                     ): SelectSelector(
                         SelectSelectorConfig(
-                            options=[
-                                {"value": PAYMENT_METHOD_BASE, "label": "base"},
-                                {"value": PAYMENT_METHOD_CARD, "label": "card"},
-                                {"value": PAYMENT_METHOD_PAYPAL, "label": "paypal"},
-                                {
-                                    "value": PAYMENT_METHOD_LOWEST_FEES,
-                                    "label": "lowest_fees",
-                                },
-                            ],
+                            options=payment_options,
                             mode=SelectSelectorMode.DROPDOWN,
                             translation_key="payment_method",
                         )
