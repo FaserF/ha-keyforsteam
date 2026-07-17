@@ -8,14 +8,15 @@ from homeassistant.core import HomeAssistant
 # required in aiohttp 3.14+ but is not passed by the current version of aioresponses.
 _original_client_response_init = aiohttp.ClientResponse.__init__
 
+
 def _patched_client_response_init(self, *args, **kwargs):
     sig = inspect.signature(_original_client_response_init)
     if "stream_writer" in sig.parameters and "stream_writer" not in kwargs:
         kwargs["stream_writer"] = MagicMock()
     return _original_client_response_init(self, *args, **kwargs)
 
-aiohttp.ClientResponse.__init__ = _patched_client_response_init
 
+aiohttp.ClientResponse.__init__ = _patched_client_response_init
 
 
 @pytest.fixture
