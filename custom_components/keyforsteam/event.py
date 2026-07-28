@@ -31,6 +31,7 @@ class KeyforSteamPriceDropEvent(
     """Representation of a KeyforSteam price drop event."""
 
     _attr_event_types = ["price_drop"]
+    _attr_icon = "mdi:trending-down"
     _attr_translation_key = "price_drop_event"
     _attr_has_entity_name = True
 

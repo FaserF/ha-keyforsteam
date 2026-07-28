@@ -1,10 +1,7 @@
 """Binary sensor for KeyforSteam price alerts."""
 
 import logging
-from homeassistant.components.binary_sensor import (
-    BinarySensorEntity,
-    BinarySensorDeviceClass,
-)
+from homeassistant.components.binary_sensor import BinarySensorEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.core import HomeAssistant
@@ -75,7 +72,6 @@ class KeyforSteamBaseBinarySensor(BinarySensorEntity):
 class KeyforSteamPriceAlertSensor(KeyforSteamBaseBinarySensor):
     """Binary sensor for price alerts."""
 
-    _attr_device_class = BinarySensorDeviceClass.OCCUPANCY
     _attr_icon = "mdi:tag-alert"
     _attr_translation_key = "price_alert"
 
@@ -97,9 +93,9 @@ class KeyforSteamPriceAlertSensor(KeyforSteamBaseBinarySensor):
         )
 
     @property
-    def name(self):
-        """Return the name of the sensor."""
-        return f"{self._coordinator.product_name or self._coordinator.product_id} Price Alert"
+    def icon(self) -> str:
+        """Return the icon to use in the frontend."""
+        return "mdi:tag-alert" if self.is_on else "mdi:tag-outline"
 
     @property
     def is_on(self):
@@ -131,7 +127,6 @@ class KeyforSteamPriceAlertSensor(KeyforSteamBaseBinarySensor):
 class KeyforSteamStockBinarySensor(KeyforSteamBaseBinarySensor):
     """Binary sensor for stock status."""
 
-    _attr_device_class = BinarySensorDeviceClass.CONNECTIVITY
     _attr_icon = "mdi:package-variant"
     _attr_translation_key = "stock"
 
@@ -141,9 +136,9 @@ class KeyforSteamStockBinarySensor(KeyforSteamBaseBinarySensor):
         self._attr_unique_id = f"keyforsteam_{coordinator.product_id}_stock"
 
     @property
-    def name(self):
-        """Return the name of the sensor."""
-        return f"{self._coordinator.product_name or self._coordinator.product_id} Stock"
+    def icon(self) -> str:
+        """Return the icon to use in the frontend."""
+        return "mdi:package-variant" if self.is_on else "mdi:package-variant-closed"
 
     @property
     def is_on(self):
@@ -153,3 +148,4 @@ class KeyforSteamStockBinarySensor(KeyforSteamBaseBinarySensor):
 
         offer_count = self._coordinator.data.get("offer_count", 0)
         return offer_count > 0
+

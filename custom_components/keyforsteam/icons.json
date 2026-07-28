@@ -1,0 +1,51 @@
+{
+  "entity": {
+    "binary_sensor": {
+      "price_alert": {
+        "default": "mdi:tag-alert",
+        "state": {
+          "on": "mdi:tag-alert",
+          "off": "mdi:tag-outline"
+        }
+      },
+      "stock": {
+        "default": "mdi:package-variant",
+        "state": {
+          "on": "mdi:package-variant",
+          "off": "mdi:package-variant-closed"
+        }
+      }
+    },
+    "sensor": {
+      "lowest_price": {
+        "default": "mdi:gamepad-variant"
+      },
+      "rating": {
+        "default": "mdi:star"
+      },
+      "offer_count": {
+        "default": "mdi:store"
+      }
+    },
+    "button": {
+      "update_button": {
+        "default": "mdi:refresh"
+      }
+    },
+    "event": {
+      "price_drop_event": {
+        "default": "mdi:trending-down"
+      }
+    },
+    "number": {
+      "budget_limit": {
+        "default": "mdi:cash-minus"
+      }
+    },
+    "image": {
+      "game_image": {
+        "default": "mdi:image"
+      }
+    }
+  }
+}

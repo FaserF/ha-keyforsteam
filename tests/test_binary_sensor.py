@@ -35,10 +35,12 @@ def test_price_alert_sensor():
     entry.data = {}
     sensor = KeyforSteamPriceAlertSensor(coordinator, entry)
     assert sensor.is_on is True
+    assert sensor.icon == "mdi:tag-alert"
     assert sensor.extra_state_attributes["current_price"] == 15.0
 
     coordinator.data["low_price"] = 25.0
     assert sensor.is_on is False
+    assert sensor.icon == "mdi:tag-outline"
 
 
 def test_stock_binary_sensor():
@@ -49,6 +51,9 @@ def test_stock_binary_sensor():
 
     sensor = KeyforSteamStockBinarySensor(coordinator, MagicMock())
     assert sensor.is_on is True
+    assert sensor.icon == "mdi:package-variant"
 
     coordinator.data["offer_count"] = 0
     assert sensor.is_on is False
+    assert sensor.icon == "mdi:package-variant-closed"
+

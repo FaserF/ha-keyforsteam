@@ -27,6 +27,7 @@ async def async_setup_entry(
 class KeyforSteamGameImage(ImageEntity):
     """Representation of a KeyforSteam game cover image."""
 
+    _attr_icon = "mdi:image"
     _attr_translation_key = "game_image"
     _attr_entity_registry_enabled_default = False
     _attr_has_entity_name = True

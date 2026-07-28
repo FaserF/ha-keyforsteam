@@ -28,6 +28,7 @@ async def async_setup_entry(
 class KeyforSteamBudgetNumber(RestoreNumber):
     """Representation of a KeyforSteam budget target number."""
 
+    _attr_icon = "mdi:cash-minus"
     _attr_translation_key = "budget_limit"
     _attr_has_entity_name = True
     _attr_native_min_value = 0.0
