@@ -497,15 +497,16 @@ class KeyforSteamDataUpdateCoordinator(DataUpdateCoordinator):
                 )
                 await asyncio.sleep(backoff_delay)
             else:
-                # Initial random delay to desynchronise from other integrations
-                # and prevent request storms after HA restarts.
-                initial_delay = random.uniform(2.0, 8.0)
-                _LOGGER.debug(
-                    "Waiting %.2f seconds before fetching '%s' to reduce bot fingerprint",
-                    initial_delay,
-                    self.product_name or self.product_id,
-                )
-                await asyncio.sleep(initial_delay)
+                # Initial random delay during periodic updates to desynchronise from other integrations
+                # and prevent request storms. Skip on initial startup fetch.
+                if self.data is not None:
+                    initial_delay = random.uniform(2.0, 8.0)
+                    _LOGGER.debug(
+                        "Waiting %.2f seconds before fetching '%s' to reduce bot fingerprint",
+                        initial_delay,
+                        self.product_name or self.product_id,
+                    )
+                    await asyncio.sleep(initial_delay)
 
             user_agent = random.choice(USER_AGENTS)
 
