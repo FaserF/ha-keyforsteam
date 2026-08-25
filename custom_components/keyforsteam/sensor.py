@@ -373,7 +373,8 @@ class KeyforSteamDataUpdateCoordinator(DataUpdateCoordinator):
         """Handle calculation and creation/resolution of API failure repair."""
         from homeassistant.helpers import issue_registry as ir
 
-        issue_id = f"{REPAIR_API_FAILURE}_{self.product_id}"
+        # Use global issue ID across all products so the issue is reported once instead of per entity
+        issue_id = REPAIR_API_FAILURE
 
         if not failed:
             ir.async_delete_issue(self.hass, DOMAIN, issue_id)
