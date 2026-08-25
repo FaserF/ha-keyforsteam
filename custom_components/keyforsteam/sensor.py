@@ -6,6 +6,7 @@ import logging
 import random
 import re
 from datetime import datetime, timedelta
+from typing import Any
 
 import aiohttp
 from homeassistant.components.sensor import (
