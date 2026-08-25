@@ -132,6 +132,12 @@ class KeyforSteamDataUpdateCoordinator(DataUpdateCoordinator):
         # lasts hours, not seconds.
         self._backoff_until: datetime | None = None
 
+        # HA persistent storage for instant startup (restart-resistance)
+        from homeassistant.helpers import storage
+        self._store = storage.Store(
+            hass, 1, f"keyforsteam_{entry.entry_id}_cache"
+        )
+
         super().__init__(
             hass,
             _LOGGER,
@@ -458,6 +464,26 @@ class KeyforSteamDataUpdateCoordinator(DataUpdateCoordinator):
             await self._handle_api_repair(True)
             raise UpdateFailed("Could not build product URL")
 
+        # --- Restart Resistance: Check Storage Cache on Startup ---
+        if self.data is None:
+            try:
+                cached_store = await self._store.async_load()
+                if cached_store and isinstance(cached_store, dict):
+                    cached_data = cached_store.get("data")
+                    cached_time_str = cached_store.get("timestamp")
+                    if cached_data and cached_time_str:
+                        cached_time = datetime.fromisoformat(cached_time_str)
+                        # If cache is younger than update_interval, use it directly to speed up startup
+                        if (datetime.now() - cached_time) < timedelta(hours=self.update_interval_hours):
+                            _LOGGER.info(
+                                "Using stored cache for '%s' to eliminate startup delay",
+                                self.product_name or self.product_id,
+                            )
+                            self.last_successful_fetch = cached_time
+                            return cached_data
+            except Exception as err:
+                _LOGGER.debug("Could not load stored cache for %s: %s", self.product_id, err)
+
         # --- Backoff guard ---
         # If a Cloudflare block was detected previously, skip the request
         # entirely and return whatever data we already have.
@@ -628,6 +654,14 @@ class KeyforSteamDataUpdateCoordinator(DataUpdateCoordinator):
                         self.consecutive_failures = 0
                         self.last_successful_fetch = datetime.now()
                         self._backoff_until = None  # Clear any previous backoff
+                        try:
+                            await self._store.async_save({
+                                "data": offers,
+                                "timestamp": self.last_successful_fetch.isoformat(),
+                            })
+                        except Exception as save_err:
+                            _LOGGER.debug("Could not save cache to storage for %s: %s", self.product_id, save_err)
+
                         await self._handle_api_repair(False)
                         await self._handle_not_found_repair(False)
                         return offers
