@@ -134,7 +134,7 @@ class KeyforSteamDataUpdateCoordinator(DataUpdateCoordinator):
         # HA persistent storage for instant startup (restart-resistance)
         from homeassistant.helpers import storage
 
-        self._store = storage.Store(hass, 1, f"keyforsteam_{entry.entry_id}_cache")
+        self._store: Any = storage.Store(hass, 1, f"keyforsteam_{entry.entry_id}_cache")
 
         super().__init__(
             hass,
