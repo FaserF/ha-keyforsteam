@@ -171,10 +171,13 @@ async def test_non_cloudflare_403_retries(coordinator):
     from homeassistant.helpers.update_coordinator import UpdateFailed
 
     coordinator._handle_api_repair = AsyncMock()
-    with patch(
-        "homeassistant.helpers.aiohttp_client.async_get_clientsession",
-        return_value=mock_session,
-    ), pytest.raises(UpdateFailed):
+    with (
+        patch(
+            "homeassistant.helpers.aiohttp_client.async_get_clientsession",
+            return_value=mock_session,
+        ),
+        pytest.raises(UpdateFailed),
+    ):
         await coordinator._async_update_data()
 
     # Should have tried MAX_RETRIES times

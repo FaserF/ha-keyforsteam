@@ -471,18 +471,19 @@ class KeyforSteamDataUpdateCoordinator(DataUpdateCoordinator):
                 if cached_store and isinstance(cached_store, dict):
                     cached_data = cached_store.get("data")
                     cached_time_str = cached_store.get("timestamp")
-                    if cached_data and cached_time_str:
-                        cached_time = datetime.fromisoformat(cached_time_str)
-                        # If cache is younger than update_interval, use it directly to speed up startup
-                        if (datetime.now() - cached_time) < timedelta(
-                            hours=self.update_interval_hours
-                        ):
-                            _LOGGER.info(
-                                "Using stored cache for '%s' to eliminate startup delay",
-                                self.product_name or self.product_id,
-                            )
-                            self.last_successful_fetch = cached_time
-                            return cached_data
+                    if cached_data:
+                        cached_time = (
+                            datetime.fromisoformat(cached_time_str)
+                            if cached_time_str
+                            else datetime.now()
+                        )
+                        # If cache exists (even if older), serve it immediately to avoid 36s startup freeze
+                        _LOGGER.info(
+                            "Using stored cache for '%s' to eliminate startup delay",
+                            self.product_name or self.product_id,
+                        )
+                        self.last_successful_fetch = cached_time
+                        return cached_data
             except Exception as err:
                 _LOGGER.debug(
                     "Could not load stored cache for %s: %s", self.product_id, err
