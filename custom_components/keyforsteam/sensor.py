@@ -1,48 +1,47 @@
 """KeyForSteam sensor using AllKeyShop JSON-LD structured data."""
 
-import logging
-import re
-import json
-import random
 import asyncio
+import json
+import logging
+import random
+import re
 from datetime import datetime, timedelta
 
 import aiohttp
-
 from homeassistant.components.sensor import (
-    SensorEntity,
     SensorDeviceClass,
+    SensorEntity,
     SensorStateClass,
 )
-from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.device_registry import DeviceEntryType
+from homeassistant.helpers.entity import DeviceInfo
+from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .const import (
-    DOMAIN,
-    KEYFORSTEAM_PRODUCT_URL,
     ALLKEYSHOP_PRODUCT_URL,
+    CLOUDFLARE_BACKOFF_HOURS,
+    CONF_ALLOW_ACCOUNTS,
+    CONF_CURRENCY,
+    CONF_IGNORE_UNREALISTIC_PRICES,
+    CONF_PAYMENT_METHOD,
     CONF_PRODUCT_ID,
     CONF_PRODUCT_NAME,
     CONF_PRODUCT_SLUG,
-    CONF_CURRENCY,
-    CONF_ALLOW_ACCOUNTS,
-    CONF_IGNORE_UNREALISTIC_PRICES,
-    CONF_PAYMENT_METHOD,
     CONF_UPDATE_INTERVAL,
+    DOMAIN,
+    ISSUE_TRACKER_URL,
+    KEYFORSTEAM_PRODUCT_URL,
+    MAX_RETRIES,
     PAYMENT_METHOD_CARD,
-    PAYMENT_METHOD_PAYPAL,
     PAYMENT_METHOD_LOWEST_FEES,
-    UPDATE_INTERVAL_HOURS,
-    REPAIR_THRESHOLD_HOURS,
+    PAYMENT_METHOD_PAYPAL,
     REPAIR_API_FAILURE,
     REPAIR_PRODUCT_NOT_FOUND,
-    ISSUE_TRACKER_URL,
-    CLOUDFLARE_BACKOFF_HOURS,
-    MAX_RETRIES,
+    REPAIR_THRESHOLD_HOURS,
+    UPDATE_INTERVAL_HOURS,
 )
 
 # Markers that indicate a Cloudflare/bot-detection page (applies to both
@@ -134,9 +133,8 @@ class KeyforSteamDataUpdateCoordinator(DataUpdateCoordinator):
 
         # HA persistent storage for instant startup (restart-resistance)
         from homeassistant.helpers import storage
-        self._store = storage.Store(
-            hass, 1, f"keyforsteam_{entry.entry_id}_cache"
-        )
+
+        self._store = storage.Store(hass, 1, f"keyforsteam_{entry.entry_id}_cache")
 
         super().__init__(
             hass,
@@ -384,7 +382,9 @@ class KeyforSteamDataUpdateCoordinator(DataUpdateCoordinator):
 
         if not failed:
             ir.async_delete_issue(self.hass, DOMAIN, issue_id)
-            ir.async_delete_issue(self.hass, DOMAIN, f"{REPAIR_API_FAILURE}_{self.product_id}")
+            ir.async_delete_issue(
+                self.hass, DOMAIN, f"{REPAIR_API_FAILURE}_{self.product_id}"
+            )
             self.api_repair_created = False
             return
 
@@ -474,7 +474,9 @@ class KeyforSteamDataUpdateCoordinator(DataUpdateCoordinator):
                     if cached_data and cached_time_str:
                         cached_time = datetime.fromisoformat(cached_time_str)
                         # If cache is younger than update_interval, use it directly to speed up startup
-                        if (datetime.now() - cached_time) < timedelta(hours=self.update_interval_hours):
+                        if (datetime.now() - cached_time) < timedelta(
+                            hours=self.update_interval_hours
+                        ):
                             _LOGGER.info(
                                 "Using stored cache for '%s' to eliminate startup delay",
                                 self.product_name or self.product_id,
@@ -482,7 +484,9 @@ class KeyforSteamDataUpdateCoordinator(DataUpdateCoordinator):
                             self.last_successful_fetch = cached_time
                             return cached_data
             except Exception as err:
-                _LOGGER.debug("Could not load stored cache for %s: %s", self.product_id, err)
+                _LOGGER.debug(
+                    "Could not load stored cache for %s: %s", self.product_id, err
+                )
 
         # --- Backoff guard ---
         # If a Cloudflare block was detected previously, skip the request
@@ -655,12 +659,18 @@ class KeyforSteamDataUpdateCoordinator(DataUpdateCoordinator):
                         self.last_successful_fetch = datetime.now()
                         self._backoff_until = None  # Clear any previous backoff
                         try:
-                            await self._store.async_save({
-                                "data": offers,
-                                "timestamp": self.last_successful_fetch.isoformat(),
-                            })
+                            await self._store.async_save(
+                                {
+                                    "data": offers,
+                                    "timestamp": self.last_successful_fetch.isoformat(),
+                                }
+                            )
                         except Exception as save_err:
-                            _LOGGER.debug("Could not save cache to storage for %s: %s", self.product_id, save_err)
+                            _LOGGER.debug(
+                                "Could not save cache to storage for %s: %s",
+                                self.product_id,
+                                save_err,
+                            )
 
                         await self._handle_api_repair(False)
                         await self._handle_not_found_repair(False)

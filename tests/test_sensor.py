@@ -1,13 +1,15 @@
-import pytest
 from unittest.mock import MagicMock
+
+import pytest
+
+from custom_components.keyforsteam.const import DOMAIN
 from custom_components.keyforsteam.sensor import (
     KeyforSteamDataUpdateCoordinator,
-    async_setup_entry,
+    KeyforSteamOfferCountSensor,
     KeyforSteamPriceSensor,
     KeyforSteamRatingSensor,
-    KeyforSteamOfferCountSensor,
+    async_setup_entry,
 )
-from custom_components.keyforsteam.const import DOMAIN
 
 
 @pytest.fixture

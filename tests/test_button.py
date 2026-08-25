@@ -1,8 +1,10 @@
+from unittest.mock import AsyncMock, MagicMock
+
 import pytest
-from unittest.mock import MagicMock, AsyncMock
+
 from custom_components.keyforsteam.button import (
-    async_setup_entry,
     KeyforSteamUpdateButton,
+    async_setup_entry,
 )
 from custom_components.keyforsteam.const import DOMAIN
 

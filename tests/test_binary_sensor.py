@@ -1,9 +1,11 @@
-import pytest
 from unittest.mock import MagicMock
+
+import pytest
+
 from custom_components.keyforsteam.binary_sensor import (
-    async_setup_entry,
     KeyforSteamPriceAlertSensor,
     KeyforSteamStockBinarySensor,
+    async_setup_entry,
 )
 from custom_components.keyforsteam.const import DOMAIN
 
@@ -56,4 +58,3 @@ def test_stock_binary_sensor():
     coordinator.data["offer_count"] = 0
     assert sensor.is_on is False
     assert sensor.icon == "mdi:package-variant-closed"
-

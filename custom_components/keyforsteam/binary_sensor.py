@@ -1,17 +1,18 @@
 """Binary sensor for KeyforSteam price alerts."""
 
 import logging
+
 from homeassistant.components.binary_sensor import BinarySensorEntity
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.device_registry import DeviceEntryType
+from homeassistant.helpers.entity import DeviceInfo
+from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import (
-    DOMAIN,
     CONF_PRICE_ALERT_THRESHOLD,
     DEFAULT_PRICE_ALERT_THRESHOLD,
+    DOMAIN,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -148,4 +149,3 @@ class KeyforSteamStockBinarySensor(KeyforSteamBaseBinarySensor):
 
         offer_count = self._coordinator.data.get("offer_count", 0)
         return offer_count > 0
-

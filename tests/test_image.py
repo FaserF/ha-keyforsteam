@@ -1,10 +1,12 @@
-import pytest
 from unittest.mock import MagicMock
-from custom_components.keyforsteam.image import (
-    async_setup_entry,
-    KeyforSteamGameImage,
-)
+
+import pytest
+
 from custom_components.keyforsteam.const import DOMAIN
+from custom_components.keyforsteam.image import (
+    KeyforSteamGameImage,
+    async_setup_entry,
+)
 
 
 @pytest.mark.asyncio

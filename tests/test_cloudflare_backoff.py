@@ -1,11 +1,12 @@
 """Tests for Cloudflare backoff and ban-prevention logic."""
 
-import pytest
 from datetime import datetime, timedelta
-from unittest.mock import patch, MagicMock, AsyncMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
-from custom_components.keyforsteam.sensor import KeyforSteamDataUpdateCoordinator
+import pytest
+
 from custom_components.keyforsteam.const import CLOUDFLARE_BACKOFF_HOURS, MAX_RETRIES
+from custom_components.keyforsteam.sensor import KeyforSteamDataUpdateCoordinator
 
 
 @pytest.fixture
@@ -173,9 +174,8 @@ async def test_non_cloudflare_403_retries(coordinator):
     with patch(
         "homeassistant.helpers.aiohttp_client.async_get_clientsession",
         return_value=mock_session,
-    ):
-        with pytest.raises(UpdateFailed):
-            await coordinator._async_update_data()
+    ), pytest.raises(UpdateFailed):
+        await coordinator._async_update_data()
 
     # Should have tried MAX_RETRIES times
     assert mock_session.get.call_count == MAX_RETRIES

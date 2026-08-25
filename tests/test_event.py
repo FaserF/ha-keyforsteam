@@ -1,10 +1,12 @@
-import pytest
 from unittest.mock import MagicMock
-from custom_components.keyforsteam.event import (
-    async_setup_entry,
-    KeyforSteamPriceDropEvent,
-)
+
+import pytest
+
 from custom_components.keyforsteam.const import DOMAIN
+from custom_components.keyforsteam.event import (
+    KeyforSteamPriceDropEvent,
+    async_setup_entry,
+)
 
 
 @pytest.mark.asyncio

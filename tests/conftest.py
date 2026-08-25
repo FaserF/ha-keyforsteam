@@ -1,7 +1,8 @@
-import pytest
-from unittest.mock import MagicMock, AsyncMock
 import inspect
+from unittest.mock import AsyncMock, MagicMock
+
 import aiohttp
+import pytest
 from homeassistant.core import HomeAssistant
 
 # Patch aiohttp ClientResponse to handle the stream_writer parameter, which was made

@@ -1,7 +1,9 @@
-import pytest
 from unittest.mock import MagicMock
-from custom_components.keyforsteam.diagnostics import async_get_config_entry_diagnostics
+
+import pytest
+
 from custom_components.keyforsteam.const import DOMAIN
+from custom_components.keyforsteam.diagnostics import async_get_config_entry_diagnostics
 
 
 @pytest.mark.asyncio

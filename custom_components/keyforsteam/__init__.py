@@ -1,11 +1,12 @@
 """Init file for the KeyforSteam integration."""
 
 import logging
-from homeassistant.core import HomeAssistant
-from homeassistant.config_entries import ConfigEntry
 
 import homeassistant.helpers.config_validation as cv
-from .const import DOMAIN, CONF_PRICE_ALERT_THRESHOLD, DEFAULT_PRICE_ALERT_THRESHOLD
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.core import HomeAssistant
+
+from .const import CONF_PRICE_ALERT_THRESHOLD, DEFAULT_PRICE_ALERT_THRESHOLD, DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -25,13 +26,15 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     """Set up the KeyforSteam integration."""
     _LOGGER.debug("KeyforSteam integration setup called.")
 
+    import asyncio
+    import json
+    import re
+
+    import voluptuous as vol
     from homeassistant.core import ServiceResponse, SupportsResponse
     from homeassistant.helpers import aiohttp_client
+
     from .const import GAMES_CATALOG_URL
-    import voluptuous as vol
-    import asyncio
-    import re
-    import json
 
     async def async_get_prices(call) -> ServiceResponse:
         game_name = call.data.get("game_name")
@@ -179,6 +182,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     # Automatically clean up legacy per-product issue IDs from previous versions
     from homeassistant.helpers import issue_registry as ir
+
     ir.async_delete_issue(hass, DOMAIN, f"api_failure_{coordinator.product_id}")
 
     hass.data[DOMAIN][entry.entry_id] = {"coordinator": coordinator}
@@ -219,8 +223,9 @@ async def async_update_options(hass: HomeAssistant, entry: ConfigEntry) -> None:
     # because it causes 'Unavailable' flicker on all entities.
 
     # 1. Update interval change
-    from .const import CONF_UPDATE_INTERVAL, UPDATE_INTERVAL_HOURS
     from datetime import timedelta
+
+    from .const import CONF_UPDATE_INTERVAL, UPDATE_INTERVAL_HOURS
 
     new_interval = entry.options.get(CONF_UPDATE_INTERVAL, UPDATE_INTERVAL_HOURS)
     if (
@@ -233,10 +238,10 @@ async def async_update_options(hass: HomeAssistant, entry: ConfigEntry) -> None:
 
     # 2. Check for breaking changes that require reload
     from .const import (
-        CONF_CURRENCY,
         CONF_ALLOW_ACCOUNTS,
-        CONF_PAYMENT_METHOD,
+        CONF_CURRENCY,
         CONF_IGNORE_UNREALISTIC_PRICES,
+        CONF_PAYMENT_METHOD,
     )
 
     # Compare with current coordinator state
