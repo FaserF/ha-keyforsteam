@@ -21,8 +21,11 @@ aiohttp.ClientResponse.__init__ = _patched_client_response_init
 
 
 @pytest.fixture
-def mock_hass():
+def mock_hass(tmp_path):
     hass = MagicMock(spec=HomeAssistant)
+    hass.config = MagicMock()
+    hass.config.config_dir = str(tmp_path)
+    hass.config.components = set()
     hass.data = {"network": MagicMock()}
     hass.services = MagicMock()
     hass.services.async_register = MagicMock()
