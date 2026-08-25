@@ -117,7 +117,7 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
 
                 try:
                     price_float = float(price_val) if price_val is not None else 0.0
-                except (TypeError, ValueError):
+                except TypeError, ValueError:
                     price_float = 0.0
 
                 merchant_name = p.get("merchantName") or merchants.get(

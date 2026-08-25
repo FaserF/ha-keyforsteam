@@ -9,7 +9,9 @@ PAYMENT_METHOD_LOWEST_FEES = "lowest_fees"
 
 
 class MockConfigEntry:
-    def __init__(self, data, options={}):
+    def __init__(self, data, options=None):
+        if options is None:
+            options = {}
         self.data = data
         self.options = options
 
@@ -20,12 +22,14 @@ def safe_float(value, default=0.0) -> float:
         return default
     try:
         return float(value)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return default
 
 
 class KeyforSteamDataUpdateCoordinator:
-    def __init__(self, data, options={}):
+    def __init__(self, data, options=None):
+        if options is None:
+            options = {}
         self.entry = MockConfigEntry(data, options)
         self.product_id = "190548"
         self.product_name = "Test Game"

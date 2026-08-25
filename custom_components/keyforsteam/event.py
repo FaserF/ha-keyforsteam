@@ -76,7 +76,7 @@ class KeyforSteamPriceDropEvent(
         # Ensure we always compare floats, even if the API returns a string
         try:
             current_price = float(raw_price)
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             _LOGGER.warning(
                 "KeyforSteam: unexpected low_price value %r for product %s – skipping event check",
                 raw_price,

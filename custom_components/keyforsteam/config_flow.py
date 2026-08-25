@@ -51,7 +51,7 @@ def safe_float(value, default=0.0) -> float:
         return default
     try:
         return float(value)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return default
 
 

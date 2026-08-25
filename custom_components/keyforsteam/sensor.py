@@ -86,7 +86,7 @@ def safe_float(value, default=0.0) -> float:
         return default
     try:
         return float(value)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return default
 
 
@@ -686,7 +686,7 @@ class KeyforSteamDataUpdateCoordinator(DataUpdateCoordinator):
                     self.consecutive_failures += 1
                     await self._handle_not_found_repair(True)
                     raise UpdateFailed(f"Product page not found: {e}")
-            except asyncio.TimeoutError as e:
+            except TimeoutError as e:
                 _LOGGER.error("Timeout fetching URL on attempt %d: %s", attempt, e)
                 last_error = e
             except UpdateFailed:
