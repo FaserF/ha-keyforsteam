@@ -177,6 +177,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             err,
         )
 
+    # Automatically clean up legacy per-product issue IDs from previous versions
+    from homeassistant.helpers import issue_registry as ir
+    ir.async_delete_issue(hass, DOMAIN, f"api_failure_{coordinator.product_id}")
+
     hass.data[DOMAIN][entry.entry_id] = {"coordinator": coordinator}
 
     # Determine which platforms to load
