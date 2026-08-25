@@ -378,6 +378,7 @@ class KeyforSteamDataUpdateCoordinator(DataUpdateCoordinator):
 
         if not failed:
             ir.async_delete_issue(self.hass, DOMAIN, issue_id)
+            ir.async_delete_issue(self.hass, DOMAIN, f"{REPAIR_API_FAILURE}_{self.product_id}")
             self.api_repair_created = False
             return
 
