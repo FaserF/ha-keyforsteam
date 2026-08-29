@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from homeassistant.helpers.update_coordinator import UpdateFailed
 
 from custom_components.keyforsteam.const import CLOUDFLARE_BACKOFF_HOURS, MAX_RETRIES
 from custom_components.keyforsteam.sensor import KeyforSteamDataUpdateCoordinator
@@ -21,35 +22,20 @@ def coordinator(mock_hass, mock_config_entry):
 
 
 @pytest.mark.asyncio
-async def test_backoff_skips_request_when_active(coordinator):
-    """If _backoff_until is in the future and we have cached data, return
-    cached data immediately without making a network request."""
+async def test_backoff_raises_when_active(coordinator):
+    """If _backoff_until is in the future, raise UpdateFailed without making
+    a network request."""
     coordinator._backoff_until = datetime.now() + timedelta(hours=3)
-    cached = {"low_price": 9.99, "name": "Test Game"}
-    coordinator.data = cached
+    coordinator.data = {"low_price": 9.99, "name": "Test Game"}
 
     with patch(
         "homeassistant.helpers.aiohttp_client.async_get_clientsession"
     ) as mock_session:
-        result = await coordinator._async_update_data()
+        with pytest.raises(UpdateFailed, match="Cloudflare backoff active"):
+            await coordinator._async_update_data()
 
     # No HTTP request should have been made
     mock_session.assert_not_called()
-    assert result == cached
-
-
-@pytest.mark.asyncio
-async def test_backoff_raises_when_active_and_no_cached_data(coordinator):
-    """If _backoff_until is in the future and there is no cached data,
-    raise UpdateFailed."""
-    from homeassistant.helpers.update_coordinator import UpdateFailed
-
-    coordinator._backoff_until = datetime.now() + timedelta(hours=3)
-    coordinator.data = None
-
-    with patch("homeassistant.helpers.aiohttp_client.async_get_clientsession"):
-        with pytest.raises(UpdateFailed, match="Cloudflare backoff active"):
-            await coordinator._async_update_data()
 
 
 def test_set_cloudflare_backoff(coordinator):
@@ -67,9 +53,9 @@ def test_set_cloudflare_backoff(coordinator):
 
 
 @pytest.mark.asyncio
-async def test_cloudflare_block_200_triggers_backoff_and_returns_cache(coordinator):
+async def test_cloudflare_block_200_triggers_backoff(coordinator):
     """A Cloudflare challenge page returned with HTTP 200 should trigger the
-    backoff, stop retrying immediately, and return cached data."""
+    backoff, stop retrying immediately, and raise UpdateFailed."""
     coordinator.data = {"low_price": 7.50, "name": "Cached Game"}
 
     cloudflare_html = (
@@ -94,18 +80,19 @@ async def test_cloudflare_block_200_triggers_backoff_and_returns_cache(coordinat
     mock_session.get = MagicMock(return_value=mock_get_ctx)
 
     coordinator._handle_api_repair = AsyncMock()
-    with patch(
-        "homeassistant.helpers.aiohttp_client.async_get_clientsession",
-        return_value=mock_session,
+    with (
+        patch("asyncio.sleep", new_callable=AsyncMock),
+        patch(
+            "homeassistant.helpers.aiohttp_client.async_get_clientsession",
+            return_value=mock_session,
+        ),
+        pytest.raises(UpdateFailed),
     ):
-        result = await coordinator._async_update_data()
+        await coordinator._async_update_data()
 
     # Backoff must be active
     assert coordinator._backoff_until is not None
     assert coordinator._backoff_until > datetime.now()
-
-    # Cached data must be returned so entities stay available
-    assert result == coordinator.data
 
     # Only one request attempt should have been made (break after first block)
     assert mock_session.get.call_count == 1
@@ -133,18 +120,20 @@ async def test_cloudflare_block_403_triggers_backoff(coordinator):
     mock_session.get = MagicMock(return_value=mock_get_ctx)
 
     coordinator._handle_api_repair = AsyncMock()
-    with patch(
-        "homeassistant.helpers.aiohttp_client.async_get_clientsession",
-        return_value=mock_session,
+    with (
+        patch("asyncio.sleep", new_callable=AsyncMock),
+        patch(
+            "homeassistant.helpers.aiohttp_client.async_get_clientsession",
+            return_value=mock_session,
+        ),
+        pytest.raises(UpdateFailed),
     ):
-        result = await coordinator._async_update_data()
+        await coordinator._async_update_data()
 
     # Backoff must be active
     assert coordinator._backoff_until is not None
     # Should have stopped after 1 attempt
     assert mock_session.get.call_count == 1
-    # Cached data returned
-    assert result == coordinator.data
 
 
 @pytest.mark.asyncio
@@ -168,10 +157,9 @@ async def test_non_cloudflare_403_retries(coordinator):
     mock_session = MagicMock()
     mock_session.get = MagicMock(return_value=mock_get_ctx)
 
-    from homeassistant.helpers.update_coordinator import UpdateFailed
-
     coordinator._handle_api_repair = AsyncMock()
     with (
+        patch("asyncio.sleep", new_callable=AsyncMock),
         patch(
             "homeassistant.helpers.aiohttp_client.async_get_clientsession",
             return_value=mock_session,
@@ -187,16 +175,13 @@ async def test_non_cloudflare_403_retries(coordinator):
 
 
 # ---------------------------------------------------------------------------
-# Fault-tolerant first_refresh test
+# First refresh error propagation test
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
-async def test_setup_entry_succeeds_even_if_first_refresh_fails(
-    mock_hass, mock_config_entry
-):
-    """async_setup_entry should return True even when the first refresh fails,
-    so that HA does not immediately retry setup and trigger more requests."""
+async def test_setup_entry_raises_if_first_refresh_fails(mock_hass, mock_config_entry):
+    """async_setup_entry should raise when first refresh fails so HA handles retry."""
     with patch("homeassistant.helpers.frame.report_usage"):
         from custom_components.keyforsteam import async_setup_entry
 
@@ -211,11 +196,5 @@ async def test_setup_entry_succeeds_even_if_first_refresh_fails(
         mock_coord.product_id = "12345"
         mock_coord_class.return_value = mock_coord
 
-        result = await async_setup_entry(mock_hass, mock_config_entry)
-
-    # Entry setup must succeed despite the failed first refresh
-    assert result is True
-    from custom_components.keyforsteam.const import DOMAIN
-
-    assert DOMAIN in mock_hass.data
-    assert mock_config_entry.entry_id in mock_hass.data[DOMAIN]
+        with pytest.raises(Exception, match="Cloudflare block!"):
+            await async_setup_entry(mock_hass, mock_config_entry)

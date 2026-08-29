@@ -58,3 +58,16 @@ def test_stock_binary_sensor():
     coordinator.data["offer_count"] = 0
     assert sensor.is_on is False
     assert sensor.icon == "mdi:package-variant-closed"
+
+
+def test_price_alert_sensor_disabled():
+    """Test price alert sensor when threshold is 0 (disabled)."""
+    coordinator = MagicMock()
+    coordinator.product_name = "Test Game"
+    coordinator.data = {"low_price": 5.0}
+
+    entry = MagicMock()
+    entry.options = {"price_alert_threshold": 0.0}
+    entry.data = {}
+    sensor = KeyforSteamPriceAlertSensor(coordinator, entry)
+    assert sensor.is_on is False

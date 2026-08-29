@@ -6,7 +6,7 @@ import homeassistant.helpers.config_validation as cv
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 
-from .const import CONF_PRICE_ALERT_THRESHOLD, DEFAULT_PRICE_ALERT_THRESHOLD, DOMAIN
+from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -34,12 +34,17 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     from homeassistant.core import ServiceResponse, SupportsResponse
     from homeassistant.helpers import aiohttp_client
 
-    from .const import GAMES_CATALOG_URL
+    from .const import (
+        ALLKEYSHOP_PRODUCT_URL,
+        GAMES_CATALOG_URL,
+        KEYFORSTEAM_PRODUCT_URL,
+    )
 
     async def async_get_prices(call) -> ServiceResponse:
         game_name = call.data.get("game_name")
         if not game_name:
             raise vol.Invalid("game_name is required")
+        currency = call.data.get("currency", "eur").lower()
 
         session = aiohttp_client.async_get_clientsession(hass)
 
@@ -84,7 +89,10 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
         slug = best_game.get("name", "").lower()
         slug = re.sub(r"[^a-z0-9]+", "-", slug).strip("-")
 
-        url = f"https://www.keyforsteam.de/{slug}-key-kaufen"
+        if currency == "eur":
+            url = KEYFORSTEAM_PRODUCT_URL.format(slug=slug)
+        else:
+            url = ALLKEYSHOP_PRODUCT_URL.format(slug=slug)
 
         headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
@@ -127,7 +135,7 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
                     {
                         "seller": merchant_name,
                         "price": price_float,
-                        "currency": "EUR",
+                        "currency": currency.upper(),
                         "is_account": p.get("account", False),
                     }
                 )
@@ -146,7 +154,12 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
         DOMAIN,
         "get_prices",
         async_get_prices,
-        schema=vol.Schema({vol.Required("game_name"): cv.string}),
+        schema=vol.Schema(
+            {
+                vol.Required("game_name"): cv.string,
+                vol.Optional("currency", default="eur"): cv.string,
+            }
+        ),
         supports_response=SupportsResponse.ONLY,
     )
 
@@ -163,22 +176,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     coordinator = KeyforSteamDataUpdateCoordinator(hass, entry)
 
-    # Use a fault-tolerant first refresh: if the initial fetch fails (e.g. because
-    # Cloudflare is blocking us or the site is temporarily down), we do NOT want
-    # to abort the entire entry setup. Aborting causes HA to schedule an immediate
-    # retry, which can trigger rapid-fire requests and worsen a rate-limit/ban.
-    # Instead, we initialise the entry with no data; the coordinator's scheduled
-    # update interval will handle the first real fetch in the background.
-    try:
-        await coordinator.async_config_entry_first_refresh()
-    except Exception as err:
-        _LOGGER.warning(
-            "First data fetch for '%s' failed (%s). "
-            "Integration will initialise with no data and retry on the next scheduled update. "
-            "This is expected after a Cloudflare block or temporary network issue.",
-            coordinator.product_name or coordinator.product_id,
-            err,
-        )
+    await coordinator.async_config_entry_first_refresh()
 
     # Automatically clean up legacy per-product issue IDs from previous versions
     from homeassistant.helpers import issue_registry as ir
@@ -187,20 +185,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     hass.data[DOMAIN][entry.entry_id] = {"coordinator": coordinator}
 
-    # Determine which platforms to load
-    platforms_to_load = ["sensor", "image", "button", "event", "number"]
-
-    # Only load binary_sensor if price alert threshold is configured
-    threshold = entry.options.get(
-        CONF_PRICE_ALERT_THRESHOLD, DEFAULT_PRICE_ALERT_THRESHOLD
-    )
-    if threshold and threshold > 0:
-        platforms_to_load.append("binary_sensor")
-
     try:
-        await hass.config_entries.async_forward_entry_setups(entry, platforms_to_load)
+        await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
         _LOGGER.debug(
-            "Successfully set up platforms for KeyforSteam entry: %s", platforms_to_load
+            "Successfully set up platforms for KeyforSteam entry: %s", PLATFORMS
         )
     except Exception as e:
         _LOGGER.error("Error setting up KeyforSteam entry: %s", e)
@@ -267,17 +255,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
     _LOGGER.debug("Unloading KeyforSteam entry with entry_id: %s", entry.entry_id)
 
-    # Determine which platforms were loaded
-    platforms_to_unload = ["sensor", "image", "button", "event", "number"]
-    threshold = entry.options.get(
-        CONF_PRICE_ALERT_THRESHOLD, DEFAULT_PRICE_ALERT_THRESHOLD
-    )
-    if threshold and threshold > 0:
-        platforms_to_unload.append("binary_sensor")
-
-    unloaded = await hass.config_entries.async_unload_platforms(
-        entry, platforms_to_unload
-    )
+    unloaded = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 
     if unloaded:
         hass.data[DOMAIN].pop(entry.entry_id, None)

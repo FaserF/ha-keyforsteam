@@ -27,22 +27,20 @@ async def test_async_setup(mock_hass):
     assert service_call[1] == "get_prices"
     service_func = service_call[2]
 
-    # Test calling the service
+    # Test calling the service (default EUR)
     with aioresponses() as m:
         m.get(
             GAMES_CATALOG_URL,
             payload={"games": [{"name": "Test Game"}]},
         )
         m.get(
-            "https://www.keyforsteam.de/test-game-key-kaufen",
+            "https://www.keyforsteam.de/test-game-key-kaufen-preisvergleich/",
             body='var gamePageTrans = {"prices": [{"price": 10.0, "merchantName": "Seller A"}]};',
         )
 
         call_mock = MagicMock()
         call_mock.data = {"game_name": "Test Game"}
 
-        # Since the module is dynamically imported inside the target function, we patch the target function's
-        # module globals or simply patch the import target module before running
         from homeassistant.helpers import aiohttp_client
 
         with patch.object(
@@ -54,6 +52,34 @@ async def test_async_setup(mock_hass):
                 response = await service_func(call_mock)
                 assert response["game_name"] == "Test Game"
                 assert response["best_price"] == 10.0
+                assert response["offers"][0]["currency"] == "EUR"
+            finally:
+                await session.close()
+
+    # Test calling the service (USD non-EUR)
+    with aioresponses() as m:
+        m.get(
+            GAMES_CATALOG_URL,
+            payload={"games": [{"name": "Test Game"}]},
+        )
+        m.get(
+            "https://www.allkeyshop.com/blog/buy-test-game-cd-key-compare-prices/",
+            body='var gamePageTrans = {"prices": [{"price": 12.0, "merchantName": "Seller B"}]};',
+        )
+
+        call_mock = MagicMock()
+        call_mock.data = {"game_name": "Test Game", "currency": "usd"}
+
+        with patch.object(
+            aiohttp_client, "async_get_clientsession"
+        ) as mock_get_session:
+            session = aiohttp.ClientSession()
+            mock_get_session.return_value = session
+            try:
+                response = await service_func(call_mock)
+                assert response["game_name"] == "Test Game"
+                assert response["best_price"] == 12.0
+                assert response["offers"][0]["currency"] == "USD"
             finally:
                 await session.close()
 

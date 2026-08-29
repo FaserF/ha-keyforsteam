@@ -111,9 +111,6 @@ Key reseller websites sometimes contain dummy or placeholder prices (e.g. `0.02â
 
 ### Image Entity (`image.keyforsteam_<game>_game_image`)
 - **State**: Displays the cover image of the game.
-### Release Calendar (`calendar.keyforsteam_<game>_calendar`)
-- **State**: Displays upcoming game release dates.
-- **Note**: Standard disabled by default. Can be enabled in entity settings.
 
 ### Budget Limit (`number.keyforsteam_<game>_budget_limit`)
 - **State**: Persistent slider representing your personal budget threshold for purchasing the game.

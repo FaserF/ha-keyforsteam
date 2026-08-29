@@ -472,19 +472,23 @@ class KeyforSteamDataUpdateCoordinator(DataUpdateCoordinator):
                 if cached_store and isinstance(cached_store, dict):
                     cached_data = cached_store.get("data")
                     cached_time_str = cached_store.get("timestamp")
-                    if cached_data:
-                        cached_time = (
-                            datetime.fromisoformat(cached_time_str)
-                            if cached_time_str
-                            else datetime.now()
+                    if cached_data and cached_time_str:
+                        cached_time = datetime.fromisoformat(cached_time_str)
+                        # Cap disk cache to maximum age (REPAIR_THRESHOLD_HOURS = 24h)
+                        if datetime.now() - cached_time <= timedelta(
+                            hours=REPAIR_THRESHOLD_HOURS
+                        ):
+                            _LOGGER.info(
+                                "Using stored cache for '%s' to eliminate startup delay",
+                                self.product_name or self.product_id,
+                            )
+                            self.last_successful_fetch = cached_time
+                            return cached_data
+                        _LOGGER.debug(
+                            "Stored cache for %s is older than %d hours, ignoring",
+                            self.product_id,
+                            REPAIR_THRESHOLD_HOURS,
                         )
-                        # If cache exists (even if older), serve it immediately to avoid 36s startup freeze
-                        _LOGGER.info(
-                            "Using stored cache for '%s' to eliminate startup delay",
-                            self.product_name or self.product_id,
-                        )
-                        self.last_successful_fetch = cached_time
-                        return cached_data
             except Exception as err:
                 _LOGGER.debug(
                     "Could not load stored cache for %s: %s", self.product_id, err
@@ -492,19 +496,15 @@ class KeyforSteamDataUpdateCoordinator(DataUpdateCoordinator):
 
         # --- Backoff guard ---
         # If a Cloudflare block was detected previously, skip the request
-        # entirely and return whatever data we already have.
+        # entirely and raise UpdateFailed so entity states reflect the failure.
         now = datetime.now()
         if self._backoff_until is not None and now < self._backoff_until:
             remaining = (self._backoff_until - now).total_seconds() / 3600
             _LOGGER.warning(
-                "Skipping fetch for '%s': Cloudflare backoff active for another %.1f hour(s). "
-                "Existing data will be preserved.",
+                "Skipping fetch for '%s': Cloudflare backoff active for another %.1f hour(s).",
                 self.product_name or self.product_id,
                 remaining,
             )
-            # Return cached data to keep entities available
-            if self.data is not None:
-                return self.data
             raise UpdateFailed(
                 f"Cloudflare backoff active for another {remaining:.1f} hour(s). "
                 "Will retry automatically once the backoff expires."
@@ -702,16 +702,6 @@ class KeyforSteamDataUpdateCoordinator(DataUpdateCoordinator):
         self.consecutive_failures += 1
         await self._handle_api_repair(True)
 
-        # If we have stale data, return it so entities stay available rather
-        # than flipping to 'unavailable' on every blocked refresh.
-        if self.data is not None:
-            _LOGGER.warning(
-                "All fetch attempts failed for '%s'. Preserving last known data. Last error: %s",
-                self.product_name or self.product_id,
-                last_error,
-            )
-            return self.data
-
         raise UpdateFailed(
             f"Failed to update data after {MAX_RETRIES} attempts. Last error: {last_error}"
         )
@@ -721,8 +711,7 @@ class KeyforSteamDataUpdateCoordinator(DataUpdateCoordinator):
         self._backoff_until = datetime.now() + timedelta(hours=CLOUDFLARE_BACKOFF_HOURS)
         _LOGGER.warning(
             "Cloudflare/bot-protection block detected for '%s'. "
-            "Backing off for %d hours until %s to prevent a ban. "
-            "Existing sensor data will be preserved during this period.",
+            "Backing off for %d hours until %s to prevent a ban.",
             self.product_name or self.product_id,
             CLOUDFLARE_BACKOFF_HOURS,
             self._backoff_until.strftime("%H:%M"),

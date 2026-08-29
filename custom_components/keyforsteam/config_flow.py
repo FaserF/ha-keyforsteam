@@ -407,12 +407,22 @@ class KeyforSteamOptionsFlow(config_entries.OptionsFlow):
 
     async def async_step_init(self, user_input=None):
         """Handle options flow."""
-        if user_input is not None:
-            return self.async_create_entry(title="", data=user_input)
-
         # Get current values from options or data
-        options = self.config_entry.options
-        data = self.config_entry.data
+        options = (
+            self._config_entry.options
+            if hasattr(self, "_config_entry") and self._config_entry
+            else self.config_entry.options
+        )
+        data = (
+            self._config_entry.data
+            if hasattr(self, "_config_entry") and self._config_entry
+            else self.config_entry.data
+        )
+
+        if user_input is not None:
+            new_options = dict(options)
+            new_options.update(user_input)
+            return self.async_create_entry(title="", data=new_options)
 
         current_currency = options.get(
             CONF_CURRENCY, data.get(CONF_CURRENCY, DEFAULT_CURRENCY)

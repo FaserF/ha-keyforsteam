@@ -1,4 +1,4 @@
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -120,3 +120,42 @@ def test_offer_count_sensor(coordinator):
     sensor = KeyforSteamOfferCountSensor(coordinator, MagicMock())
     coordinator.data = {"offer_count": 10}
     assert sensor.native_value == 10
+
+
+@pytest.mark.asyncio
+async def test_coordinator_cache_age_limit(coordinator):
+    """Test that disk cache is only used if within 24 hours."""
+    from datetime import datetime, timedelta
+    from unittest.mock import AsyncMock
+
+    from homeassistant.helpers.update_coordinator import UpdateFailed
+
+    # Cache is 25 hours old -> should be ignored, fetch attempted and fail with UpdateFailed
+    coordinator.data = None
+    coordinator._handle_api_repair = AsyncMock()
+    old_time = (datetime.now() - timedelta(hours=25)).isoformat()
+    coordinator._store.async_load = AsyncMock(
+        return_value={"data": {"low_price": 5.0}, "timestamp": old_time}
+    )
+
+    with (
+        patch("asyncio.sleep", new_callable=AsyncMock),
+        patch(
+            "homeassistant.helpers.aiohttp_client.async_get_clientsession"
+        ) as mock_session,
+        pytest.raises(UpdateFailed),
+    ):
+        mock_ctx = MagicMock()
+        mock_ctx.__aenter__ = AsyncMock(side_effect=Exception("Network error"))
+        mock_ctx.__aexit__ = AsyncMock(return_value=False)
+        mock_session.return_value.get.return_value = mock_ctx
+        await coordinator._async_update_data()
+
+    # Cache was 2 hours old -> should be used immediately
+    coordinator.data = None
+    recent_time = (datetime.now() - timedelta(hours=2)).isoformat()
+    coordinator._store.async_load = AsyncMock(
+        return_value={"data": {"low_price": 8.0}, "timestamp": recent_time}
+    )
+    result = await coordinator._async_update_data()
+    assert result == {"low_price": 8.0}

@@ -126,7 +126,7 @@ async def test_options_flow():
     """Test options flow."""
     entry = MagicMock()
     entry.data = {"currency": "eur", "allow_accounts": False}
-    entry.options = {}
+    entry.options = {"price_alert_threshold": 15.0}
 
     flow = KeyforSteamOptionsFlow(entry)
     flow.hass = MagicMock()
@@ -135,3 +135,6 @@ async def test_options_flow():
         user_input={"currency": "usd", "allow_accounts": True}
     )
     assert result["type"] == "create_entry"
+    assert result["data"]["currency"] == "usd"
+    assert result["data"]["allow_accounts"] is True
+    assert result["data"]["price_alert_threshold"] == 15.0
