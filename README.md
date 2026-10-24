@@ -25,6 +25,16 @@ Track game prices from **KeyForSteam** (AllKeyShop) directly in Home Assistant. 
 </div>
 
 ---
+
+## 🔌 Recommended Hardware & Ecosystem Links
+
+| Device / Service | Integration Use Case | Link |
+| :--- | :--- | :--- |
+| **Home Assistant Green & Offizielle Smart-Home-Hardware** | Empfohlene Hardware-Basis für lokale Home Assistant Integrationen | [Offizielle Geräte-Seite →](https://fabiseitz.de/go/ha-hardware) |
+| **Home Assistant Connect ZBT-1 (Zigbee / Thread)** | Lokales Zigbee2MQTT, ZHA & Matter-over-Thread Funknetz | [Offizielle Geräte-Seite →](https://fabiseitz.de/go/ha-zigbee) |
+
+
+---
 ## Features ✨
 
 - **Game Search**: Easily find and add games using the built-in search with autocomplete.
