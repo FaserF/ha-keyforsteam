@@ -30,7 +30,10 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     import json
     import re
 
-    import voluptuous as vol
+    try:
+        import probatio as vol
+    except ImportError:
+        import voluptuous as vol  # type: ignore[no-redef]
     from homeassistant.core import ServiceResponse, SupportsResponse
     from homeassistant.helpers import aiohttp_client
 
